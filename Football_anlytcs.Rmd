@@ -1,0 +1,976 @@
+---
+title: "CS5801 Coursework- Quantitative Data Analysis"
+author: "2035575"
+date: "`r format(Sys.time(), '10 01, 2022')`"
+output: html_notebook
+version: 1.0
+---
+
+# 0. Instructions 
+
+*1. Remove the (italicised) guidance text but keep the section headings.*  
+*2. Add as many chunks of R code as required.*  
+*3. Add descriptions of your analysis plans and explanations of your code and findings.  Please be detailed and where you have made choices explain the rationale for them.*  
+*4. Write your report using RMarkdown.  For guidance see a [helpful blog](https://www.dataquest.io/blog/r-markdown-guide-cheatsheet/#tve-jump-17333da0719) or use the R Markdown cheatsheet which can be accessed from within RStudio by selecting `Help > Cheatsheets > R Markdown Cheat Sheet`.*  
+*5. Your report should be clearly and professionally presented with appropriate use of cited external sources. (5 marks)*  
+*6. It should also be easy to understand, with well-documented code following the principles of literate programming. (5 marks)*  
+
+
+```{r}
+library(skimr)
+library(corrplot)
+library(tree)
+library(dplyr)
+library(ggplot2)
+library(dlookr)
+```
+
+
+# 1. Organise and clean the data
+
+## 1.1 Subset the data into the specific dataset allocated
+ 
+
+
+```{r}
+# Assign your student id into the variable SID, for example:
+SID <- 2035575                 # This is an example, replace 2101234 with your actual ID
+SIDoffset <- (SID %% 25) + 1    # Your SID mod 25 + 1
+
+load("CS5801_football_analysis.Rda")
+# Now subset the football data set
+# Pick every 25th observation starting from your offset
+# Put into your data frame named mydf (you can rename it)
+```
+
+
+```{r}
+ftball <- football.analysis[seq(from=SIDoffset,to=nrow(football.analysis),by=25),]
+```
+
+
+
+## 1.2 Data quality analysis
+ 
+
+
+
+
+Quality check has the following steps to assess the quality in a data:
+
+1.Check for inconsistencies in Data, i.e Spelling errors in the data. Correct the errors if found.
+
+2.Check for emptiness in the data  like "" and missing values of NA. And also identify various symbols like '?,*'. If "" is found, either replace it with NA, remove the row or impute it.
+
+3.Check for negative values in the data, and remove them if its out of range or replace it with NA.
+
+4.Check for the number of NA values using is.na, which can help us decide whether to ignore it, remove it or impute it depending on the number of NA and data.
+
+5.Check for the type of data, i.e if every column is in the right data type. if not convert it into the required type or to a factor if necessary.
+
+6.Check for outliers in the data by plotting a histogram or through a box plot. The outliers can also be judged based on the range of min and max values of a particular column in the above given data set.
+
+
+```{r}
+View(ftball)
+summary(ftball)
+```
+From the Summary it can be seen that some of these variables like  potential and height_cm are normally distributed as their mean and median are the same. It can also be observed the presence of negative values in dribbling and pace column.
+
+```{r}
+head(ftball)
+```
+All the variables are in integer data type while preferred foot and club name are in character data type.
+
+
+
+```{r}
+diagnose(ftball)
+```
+The diagnose function is used, which is another function like the summary to assess data quality and to check if there are any missing values.
+
+From this it is known there are no missing values in the given data.
+
+Another observation is that the unique count in the preferred_foot column is 3 instead of 2. Because preferred foot has only 2 values, "Left" and "Right" respectively, as per the given data.
+
+
+```{r}
+skim(ftball)
+
+```
+Skim is another function, from skimr library, which is also used to assess the data quality. Like the summary function it shows the mean,median, and sd as well as the the number of  missing values in each column with its histogram distribution.
+
+From using this function it is known that there are no missing values in any of the columns in the given data. With the presence of negative  values in dribbling and pace and 3 unique values in preferred_foot column.
+
+
+
+```{r}
+#we confirm our observation we made through data quality assessing fucntions by searching for na and null values through is.na and is.null
+table(is.na(ftball))
+sum(is.na(ftball))
+which(is.null(ftball))
+```
+
+This confirms that there are no missing values like NA or null values found.
+
+## 1.3 Data cleaning  
+ 
+The Data quality issues found were:
+1. Unique count of preferred foot were 3 instead of 2.
+2. Negative values in dribbling and pace
+
+
+Hence data quality issues  which are dealt in this coursework are found below  :
+
+1. Unique count of preferred_foot
+
+```{r}
+table(ftball$preferred_foot)
+```
+From using the  table  function we observe that there is an inconsistency in the data, there is one "left" where it is supposed to be "Left".
+We correct this inconsistency by replacing the value found in that index.
+
+```{r}
+which(ftball$preferred_foot=="left")
+#the index of "left" is found by using the which function and replaced by "Left"
+ftball$preferred_foot[which(ftball$preferred_foot=="left")]<-"Left"
+table(ftball$preferred_foot)
+ftball$preferred_foot<-as.factor(ftball$preferred_foot)
+```
+Now the inconsistency found in the preferred_foot column is corrected.
+
+
+```{r}
+summary(ftball)
+```
+If a summary function is used, it can be seen that preferred foot now has 119 Left and 395 Right.
+
+
+
+Next the removing of negative values from the data set( dribbling and pace) is done. Removing the negative values if they seem very less in number compared to the entire data, as they are out of the given range.
+
+```{r}
+min(ftball$dribbling)
+min(ftball$pace)
+```
+
+
+Pace and Dribbling has negative values.
+The number of negative values is found using the which function by checking the number of values less than zero in pace and dribbling column.
+
+```{r}
+which(ftball$pace<0)
+which(ftball$dribbling<0)
+```
+From this, it is found that there is only one negative value in each column.
+
+```{r}
+ftball$pace[241]
+ftball$dribbling[303]
+```
+Removing negative values as they are out of range, using the slice function and saving the data in a new data frame, ftball.new
+```{r}
+ftball.new<-slice(ftball, -c(which(ftball$pace<0),which(ftball$dribbling<0)))
+summary(ftball.new)
+```
+From the summary we can see that the negative values have been removed, hence all the inconsistencies and issues found in data quality assessing have been rectified.
+
+# 2. Exploratory Data Analysis (EDA)
+
+## 2.1 EDA plan
+
+ 1.Visualise the data using histogram for all varibles and check for outliers
+ 2.Check the same using boxplots for all the variables
+ 3.Perform scatterplot between potential as dependent variable and other variables as explanatory variables to check for the graphical distribution of data
+ 4. Subset outliers based on the EDA results
+ 5. Do a corrplot between the numerical variables to check  for the correlation so that  can later be used in the modelling section.
+
+
+
+## 2.2 EDA and summary of results  
+
+
+
+
+Exploring Column with outliers using histogram
+```{r}
+hist(ftball.new$age)
+hist(ftball.new$height_cm)
+hist(ftball.new$weight_kg)
+hist(ftball.new$wage_eur)
+```
+
+```{r}
+boxplot(ftball.new$age)
+boxplot(ftball.new$height_cm)
+boxplot(ftball.new$weight_kg)
+boxplot(ftball.new$wage_eur)
+```
+  
+The above boxplots and histgrams show that outliers exist in age, wage_eur, weight_kg and height_cm.
+```{r}
+hist(ftball.new$potential)
+boxplot(ftball.new$potential)
+```
+The histogram of potential shows that it is normally distributed, while box plots show that there are very small outliers.
+Now the same is checked for other variables:
+
+
+```{r}
+hist(ftball.new$pace)
+hist(ftball.new$shooting)
+hist(ftball.new$passing)
+hist(ftball.new$dribbling)
+hist(ftball.new$defending)
+hist(ftball.new$physic)
+hist(ftball.new$power_strength)
+hist(ftball.new$power_long_shots)
+```
+
+
+```{r}
+boxplot(ftball.new$pace)
+boxplot(ftball.new$shooting)
+boxplot(ftball.new$passing)
+boxplot(ftball.new$dribbling)
+boxplot(ftball.new$defending)
+boxplot(ftball.new$physic)
+boxplot(ftball.new$power_strength)
+boxplot(ftball.new$power_long_shots)
+```
+
+Pace seems to have some out liers in the boxplot. And not all the columns are normally distributed. But it does not have a lot of outliers like the previously explored columns
+
+
+Exploring relationship of variables with potential (without removing outliers) with scatterplot using ggplot
+
+
+
+```{r}
+ggplot(ftball.new, aes(x=wage_eur,y=potential))+geom_point()+theme_classic()
+ggplot(ftball.new, aes(x=age,y=potential))+geom_point()+theme_classic()
+ggplot(ftball.new, aes(x=height_cm,y=potential))+geom_point()+theme_classic()
+ggplot(ftball.new, aes(x=weight_kg,y=potential))+geom_point()+theme_classic()
+ggplot(ftball.new, aes(x=pace,y=potential))+geom_point()+theme_classic()
+ggplot(ftball.new, aes(x=shooting,y=potential))+geom_point()+theme_classic()
+ggplot(ftball.new, aes(x=passing,y=potential))+geom_point()+theme_classic()
+ggplot(ftball.new, aes(x=dribbling,y=potential))+geom_point()+theme_classic()
+ggplot(ftball.new, aes(x=defending,y=potential))+geom_point()+theme_classic()
+ggplot(ftball.new, aes(x=physic,y=potential))+geom_point()+theme_classic()
+ggplot(ftball.new, aes(x=power_strength,y=potential))+geom_point()+theme_classic()
+ggplot(ftball.new, aes(x=power_long_shots,y=potential))+geom_point()+theme_classic()
+ggplot(ftball.new, aes(x=preferred_foot,y=potential))+geom_boxplot()+theme_classic()
+ggplot(ftball.new, aes(x=high.wage.ind,y=potential))+geom_boxplot()+theme_classic()
+
+```
+Wage_eur and Potential: There doesnt seem to be much of a relationship, but some points seems to suggest that higher the potential, wage increases slighlty
+
+Age and Potential: The distribution of data between age and potential is between age 20 and 40 age where the younger player has the chances of having better potential
+
+Height and Potential: The distribution of data between height and potential is between height 160 and 200 cm while the the plot does not show much of a relationship between the two.
+
+Weight and Potential: The distribution of data between weight and potential is between height 50 and 100 kg while the the plot does not show much of a relationship between the two.
+
+Pace and Potential: There seems to be a linear relationship between the two in the scatterplot. Although the distribution seems to be centered, some points suggest that higher the pace, higher the potential.
+
+Shooting and Potential: The data seems to be uniformly distributed between shooting and potential.
+
+Passing and Potential: There seems to be a linear relationship between the two in the scatterplot.Higher the passing value, better is the potential.
+
+Dribbling and Potential: There seems to be a linear relationship between the two in the scatterplot. Although the distribution seems to be centered, some points suggest that higher the dribbling, higher the potential.
+
+Defending and Potential: The data seems to be uniformly distributed between the two,  but some points after 50 defending show that better the defending, potential is on the higher side.
+
+Physic and Potential: The data seems to be uniformly distributed between physic and potential.
+
+Power Strength and Potential: The data seems to be uniformly distributed between power strength and potential.
+
+Power.long.shots and Potential: The data seems to be uniformly distributed between power long.shots and potential.
+
+Preferred foot and Potential: The data between Left and Right in preferred foot with respect to potential seems to have the same median and is equally distributed as shown in the above box plot.
+
+
+Now to find the correlation between potential and other Explanatory Variables, cor and corrplot are used.
+
+
+```{r}
+#cor gives the correlation between the 2 variables.
+
+cor(ftball.new$wage_eur,ftball.new$potential)
+cor(ftball.new$age,ftball.new$potential)
+cor(ftball.new$height_cm,ftball.new$potential)
+cor(ftball.new$weight_kg,ftball.new$potential)
+cor(ftball.new$pace,ftball.new$potential)
+cor(ftball.new$shooting,ftball.new$potential)
+cor(ftball.new$passing,ftball.new$potential)
+cor(ftball.new$dribbling,ftball.new$potential)
+cor(ftball.new$defending,ftball.new$potential)
+cor(ftball.new$physic,ftball.new$potential)
+cor(ftball.new$power_strength,ftball.new$potential)
+cor(ftball.new$power_long_shots,ftball.new$potential)
+cor(ftball.new$high.wage.ind,ftball.new$potential)
+
+
+
+
+
+```
+
+
+
+```{r}
+#corrplot can be done only on numerical values, hence we subset out the character and factor variables and the sofifa_id because it might not be relevant.
+ftball.exp<- subset(ftball.new, select=-c(1,7,8))
+cor_new<-cor(ftball.exp)
+corrplot(cor_new, diag=F,type="upper",insig = "p-value",number.digits = 1,addCoef.col = 'black',tl.cex=0.6, number.cex=1)
+
+```
+The above corrplot  suggests that there is a good correlation berween potential and wage_eur(0.4), passing(0.5), dribbling(0.5) and high.wage.ind(0.5)
+
+
+
+
+## 2.3 Additional insights and issues
+
+
+
+
+Additionally, we need to subset out the outliers and check the correlation between the variables and how it makes a difference as a whole
+
+
+That is done by first deciding on a threshold value in the variables. By referring to the previous section, it is found out that there are major outliers in age, height, weight and wage_eur.
+Hence the threshold values of age is 40 years, height_cm is 200cm, weight is 100 and wage_eur is 2e+05.
+
+The index of the outliers are found using the which function.
+```{r}
+which(ftball.new$age>40)
+ftball.new$age[173]
+
+which(ftball.new$height_cm>200)
+ftball.new$height_cm[359]
+ftball.new$height_cm[308]
+
+which(ftball.new$weight>100)
+ftball.new$weight[339]
+
+which(ftball.new$wage_eur>2e+05)
+ftball.new$wage_eur[1]
+```
+
+
+
+Slicing the outliers to a new data frame from the above explored columns, ftball.rmol is obtained, the data frame without outliers and which is clean to a certain level.
+
+The outliers of age, height and weight are removed because an age of 72, weight above 100kgs and height above 200cm are not ideal values to have in a dataset when they are represented in the histogram as outliers. Hence we are removing it. The outlier in the wage is also too high, hence we are doing the same with wage_eur too.
+
+```{r}
+#ftball.new.rmol<-slice(ftball.new, -c(which(ftball.new$age>40),which(ftball.new$height_cm>203,which(ftball.new$weight>100),which(ftball.new$wage_eur>2e+05))
+ftball.rmol<-slice(ftball.new, -c(173,359,308,339,1))
+
+                                  
+
+```
+
+```{r}
+head(ftball.rmol)
+```
+
+```{r}
+diagnose(ftball.rmol)
+```
+
+
+```{r}
+skim(ftball.rmol)
+```
+
+Exploring the data
+
+```{r}
+str(ftball.rmol)
+```
+
+```{r}
+summary(ftball.rmol)
+```
+
+When summary statistics and diagnostics are run, we can now see a difference in the change of maximum values. And can see the quality in the data.
+
+We now subset the numeric values to do a corrplot and check if there is any kind of improvement in the relationship between the variables.
+```{r}
+ftball.numeric1<-subset(ftball.rmol,  select=-c(1,7,8))
+# ftball.numeric2<-subset(ftball.rmol,  select=-c(1,8))
+# ftball.numeric3<-subset(ftball.rmol,  select=-c(1))
+# ftball.numeric4<-ftball.rmol
+# head(ftball.numeric)
+```
+
+
+```{r}
+cor_ftball1<-cor(ftball.numeric1)
+cor_ftball1_df<-as.data.frame(cor_ftball1)
+cor_ftball1
+# cor_ftball2<-cor(ftball.numeric2)
+# cor_ftball3<-cor(ftball.numeric3)
+```
+This is the correlation matrix between all the variables.
+Now to compare in a much better way, corrplot is performed.
+
+
+
+
+```{r}
+corrplot(cor_ftball1, diag=F,type="upper",insig = "p-value",number.digits = 1,addCoef.col = 'black',tl.cex=0.6, number.cex=1)
+
+
+
+```
+When this corrplot without outliers in ftball.rmol is compared with the corrplot with outliers,ftball.new, we observe some changes in the correlation value with respect to potential. But it is not clear enough for us to jusiify if removing outliers will finally give us the better result. Hence, modelling section where the data frame without ouliers can be checkedi if it proceeds to give the better model in the end.
+
+
+Furthermore, other relationships strong relationships between explanatory variables were also uncovered in the above corrplot of ftball.rmol. 
+
+
+
+
+
+
+Explanatory variables which has the highest correlation (>0.7): 0.7 as the threshold. Note that it can be changed depending on the need.
+
+
+a. 0.9 - physic - power_strength
+b.     - shooting - power_long_shot
+
+c. 0.8 - height_cm - weight_kg
+d.     - shooting - dribbling
+       - passing - dribbling
+    
+e. 0.7 - weight_kg - power_strength
+       -shooting - passing
+       -passing - power_long_shots
+       -dribbling - power_long_shots
+
+
+
+
+These relationships in the correlation values of explanatory variables can be used in the further sections to uncover the interaction between variables and to check if its helpful in any way in the modelling section.
+
+
+# 3. Modelling
+
+## 3.1 Build a model for player potential
+
+ 
+In the modelling section we use multiple linear regression using lm , with potential as the dependent variable as it is continuous and some of the explanatory variables has high correlation with eachother. This can be seen below in the modelling section.
+
+First the data with outliers is modelled.
+
+Modelling the data with outliers. - Without interactions from ftball.new
+```{r}
+head(ftball.new)
+```
+
+The dependent variable is potential and the all the other variables are explanatory variables.
+
+Model 1 : All variables
+
+```{r}
+ftball.new.lm1<-lm(ftball.new$potential~ftball.new$sofifa_id+ftball.new$wage_eur+ftball.new$age+ftball.new$height_cm+ftball.new$weight_kg+ftball.new$club_name+ftball.new$preferred_foot+ftball.new$pace+ftball.new$shooting+ftball.new$passing+ftball.new$dribbling+ftball.new$defending+ftball.new$physic+ftball.new$power_strength+ftball.new$power_long_shots+ftball.new$high.wage.ind)
+summary(ftball.new.lm1)
+plot(ftball.new.lm1)
+```
+
+Model 1 with all the variables as explanatory variables has a high correlation of 0.90 but a very low F-statistic of 4.725 with too many coefficients and with not all variables significant.The plot although has residuals distributed uniformaly, has too many variables.
+Hence a step function is tried on this. And checked for the model with Lowest AIc value.
+
+```{r}
+step(ftball.new.lm1)
+```
+
+
+The lowest AIC model has AIC value 1368. To check if all the variables are sgnificant, it is modelled and checked in the summary in Model 2
+
+Model 2: Variables in Lowest AIC value from Model 1. 
+
+```{r}
+ftball.new.lm2<-lm(ftball.new$potential~ftball.new$sofifa_id + ftball.new$wage_eur + ftball.new$age + ftball.new$height_cm + ftball.new$weight_kg + ftball.new$club_name + ftball.new$passing + ftball.new$dribbling + ftball.new$defending + ftball.new$physic + ftball.new$power_long_shots + ftball.new$high.wage.ind)
+summary(ftball.new.lm2)
+plot(ftball.new.lm2)
+```
+
+There is no improvement is F statistic of the model obtained.
+
+
+Now, another model is created without the sofifa_id in model 3, as we think sofifa_id might not be relevant to find the best model for the potential.
+
+
+
+Model 3: All variables except sofifa_id.
+
+
+
+```{r}
+
+
+ftball.new.lm3<-lm(ftball.new$potential~ftball.new$wage_eur+ftball.new$age+ftball.new$height_cm+ftball.new$weight_kg+ftball.new$preferred_foot+ftball.new$club_name+ftball.new$pace+ftball.new$shooting+ftball.new$passing+ftball.new$dribbling+ftball.new$defending+ftball.new$physic+ftball.new$power_strength+ftball.new$power_long_shots+ftball.new$high.wage.ind)
+summary(ftball.new.lm3) 
+step(ftball.new.lm3)
+plot(ftball.new.lm3)
+
+```
+The summary of Model 3 has no improvement in F statistic either.
+
+The lowest AIC model has AIC value 1372. To check if all the variables are significant, it is modelled and checked in the summary in Model 4. The residual plot is the same as it was in last model
+
+Model 4: Variables in Lowest AIC value from Model 3. 
+```{r}
+ftball.new.lm4<-lm(ftball.new$potential ~ ftball.new$wage_eur + ftball.new$age + 
+    ftball.new$height_cm + ftball.new$weight_kg + ftball.new$club_name + 
+    ftball.new$passing + ftball.new$dribbling + ftball.new$defending + 
+    ftball.new$physic + ftball.new$power_long_shots + ftball.new$high.wage.ind)
+summary(ftball.new.lm4)
+plot(ftball.new.lm4)
+```
+
+There was no improvement in either the plot or the F statistic of the model.
+
+Now, all variables except clubname is modelled and checked with potential.
+
+Model 5: All variables except clubname.
+
+```{r}
+ftball.new.lm5<-lm(ftball.new$potential~ftball.new$sofifa_id+ftball.new$wage_eur+ftball.new$age+ftball.new$height_cm+ftball.new$weight_kg+ftball.new$preferred_foot+ftball.new$pace+ftball.new$shooting+ftball.new$passing+ftball.new$dribbling+ftball.new$defending+ftball.new$physic+ftball.new$power_strength+ftball.new$power_long_shots+ftball.new$high.wage.ind)
+summary(ftball.new.lm5)
+plot(ftball.new.lm5)
+```
+The summary of Model 5 has better F statistic of 54.39 but has decreased the correaltion to 0.62. The model has more significant variables and a simpler model than the previous models. The residual plots has changed and looks slighlty heteroskedacious. Step  function is  used to check if the model can improved. 
+
+
+```{r}
+step(ftball.new.lm5)
+```
+
+The lowest AIC model has AIC value obtained using the step function is 1415. To check if all the variables are significant, it is modelled and checked in the summary in Model 6. 
+
+
+
+Model 6: Lowest AIC value from model 5
+
+```{r}
+ftball.new.lm6<-lm(ftball.new$potential ~ ftball.new$wage_eur + ftball.new$age + 
+    ftball.new$height_cm + ftball.new$shooting + ftball.new$dribbling + 
+    ftball.new$defending + ftball.new$physic + ftball.new$power_long_shots + 
+    ftball.new$high.wage.ind)
+summary(ftball.new.lm6)
+plot(ftball.new.lm6)
+```
+The F-Statistic has greately improved, with the variance explained by correlation being 0.61. All the variables obtained are significant and the model looks much simpler. This could be one of the better models obtained.
+The residual plots still looks slighlty heteroskedacious and centered.
+
+
+Now we check for a model without both clubname and sofifa_id
+
+
+
+
+Model 7: Variables without sofifa_id and clubname
+```{r}
+ftball.new.lm7<-lm(ftball.new$potential~ftball.new$wage_eur+ftball.new$age+ftball.new$height_cm+ftball.new$weight_kg+ftball.new$preferred_foot+ftball.new$pace+ftball.new$shooting+ftball.new$passing+ftball.new$dribbling+ftball.new$defending+ftball.new$physic+ftball.new$power_strength+ftball.new$power_long_shots+ftball.new$high.wage.ind)
+summary(ftball.new.lm7)
+step(ftball.new.lm7)
+plot(ftball.new.lm7)
+
+```
+
+The F statistic is less than the previous model in the summary, while correlation is more or less the same. The residual plots is also the same as before.The lowest AIC obtained in the step function is 1415. The lowest AIC model is modelled and checked if all the variables are significant.
+
+
+
+Model 8: Lowest AIC model from model 7
+
+```{r}
+ftball.new.lm8<-lm(ftball.new$potential ~ ftball.new$wage_eur + ftball.new$age + 
+    ftball.new$height_cm + ftball.new$shooting + ftball.new$dribbling + 
+    ftball.new$defending + ftball.new$physic + ftball.new$power_long_shots + 
+    ftball.new$high.wage.ind)
+summary(ftball.new.lm8)
+plot(ftball.new.lm8)
+
+```
+The model obtained is the same as model 6 with all the same variables and same statistics.
+Hence Model 8 = Model 6
+
+
+Another model with only the high correlation with potential is checked
+
+
+Model  9 : Variables with high correlation with Potential
+
+```{r}
+ftball.new.lm9<-lm(ftball.new$potential~ftball.new$wage_eur+ftball.new$passing+ftball.new$dribbling+ftball.new$high.wage.ind)
+summary(ftball.new.lm9)
+step(ftball.new.lm9)
+plot(ftball.new.lm9)
+```
+Although the  f statistic is good, the correlation is less, hence not explaining the variance. Most of the variables are significant. But  this model wouldn't be preferred.
+
+
+***
+
+Now Interactions with variables are checked before making another model with interactions with the same data frame ftball.new.
+
+Modelling with Interactions:
+
+
+An approach to see if there are interactions, is using a regression tree.
+
+```{r}
+ftball.new.tree<-tree(ftball.new$potential~., data=ftball.new)
+plot(ftball.new.tree)
+text(ftball.new.tree,label="yval",cex=0.6,xpd=TRUE)
+```
+In the above regression tree, wage_eur is the main variable which has an interaction. Wage less than 8500 has an impact on age. and Age inturn has an impact on dribbling, defending, passing and shooting
+
+
+
+
+Model 6 is the best model according to R squared and F Statistic:
+Hence using interactions from the regression tree obtained on the model 6  with the consideration of polynomial terms from the corrplot, variables with high correlation that were present in model 6 is considered :
+
+Model  11:
+```{r}
+ftball.new.lm11<-lm(ftball.new$potential ~ ftball.new$wage_eur * ftball.new$age * 
+    ftball.new$shooting * ftball.new$dribbling *
+    ftball.new$defending +  ftball.new$height_cm +ftball.new$physic + ftball.new$power_long_shots + 
+    ftball.new$high.wage.ind + I(ftball.new$shooting^2)+I(ftball.new$dribbling^2)+I(ftball.new$height_cm^2)+I(ftball.new$defending^2))
+summary(ftball.new.lm11)
+step(ftball.new.lm11)
+plot(ftball.new.lm11)
+```
+The R square has improved explaining 0.80 of the variance but has less F statistic in the summary of the model.The residual plot looks good but The coffeciants are more. Hence step function was applied and the lowest AIC value obtained was 1124. The lowest model obtained in AIC is modeled next.
+
+
+
+Model 11.1: Lowest AIC of Model 11
+```{r}
+ftball.new.lm11.1<-lm(ftball.new$potential ~ ftball.new$wage_eur + ftball.new$age + 
+    ftball.new$shooting + ftball.new$dribbling + ftball.new$defending + 
+    ftball.new$height_cm + ftball.new$power_long_shots + ftball.new$high.wage.ind + 
+    I(ftball.new$dribbling^2) + I(ftball.new$defending^2) + ftball.new$wage_eur:ftball.new$age + 
+    ftball.new$wage_eur:ftball.new$shooting + ftball.new$age:ftball.new$shooting + 
+    ftball.new$wage_eur:ftball.new$dribbling + ftball.new$age:ftball.new$dribbling + 
+    ftball.new$shooting:ftball.new$dribbling + ftball.new$wage_eur:ftball.new$defending + 
+    ftball.new$age:ftball.new$defending + ftball.new$shooting:ftball.new$defending + 
+    ftball.new$dribbling:ftball.new$defending + ftball.new$wage_eur:ftball.new$age:ftball.new$shooting + 
+    ftball.new$wage_eur:ftball.new$age:ftball.new$dribbling + 
+    ftball.new$wage_eur:ftball.new$shooting:ftball.new$dribbling + 
+    ftball.new$age:ftball.new$shooting:ftball.new$dribbling + 
+    ftball.new$wage_eur:ftball.new$age:ftball.new$defending + 
+    ftball.new$wage_eur:ftball.new$shooting:ftball.new$defending + 
+    ftball.new$age:ftball.new$shooting:ftball.new$defending + 
+    ftball.new$wage_eur:ftball.new$dribbling:ftball.new$defending + 
+    ftball.new$age:ftball.new$dribbling:ftball.new$defending + 
+    ftball.new$shooting:ftball.new$dribbling:ftball.new$defending + 
+    ftball.new$wage_eur:ftball.new$age:ftball.new$shooting:ftball.new$dribbling + 
+    ftball.new$wage_eur:ftball.new$age:ftball.new$shooting:ftball.new$defending + 
+    ftball.new$wage_eur:ftball.new$age:ftball.new$dribbling:ftball.new$defending + 
+    ftball.new$wage_eur:ftball.new$shooting:ftball.new$dribbling:ftball.new$defending + 
+    ftball.new$age:ftball.new$shooting:ftball.new$dribbling:ftball.new$defending + 
+    ftball.new$wage_eur:ftball.new$age:ftball.new$shooting:ftball.new$dribbling:ftball.new$defending)
+
+summary(ftball.new.lm11.1)
+plot(ftball.new.lm11.1)
+```
+The R square is the same  but there is a slight increase in F statistic. But the model has too many coefficients. The residual plot is the same as model 11.
+
+Model 13:
+```{r}
+ftball.rmol.lm13<-lm(ftball.rmol$potential ~ ftball.rmol$wage_eur * ftball.rmol$age * 
+    ftball.rmol$shooting * ftball.rmol$dribbling *
+    ftball.rmol$defending +  ftball.rmol$height_cm +ftball.rmol$physic + ftball.rmol$power_long_shots + 
+    ftball.rmol$high.wage.ind + I(ftball.rmol$shooting^2)+I(ftball.rmol$dribbling^2)+I(ftball.rmol$height_cm^2)+I(ftball.rmol$defending^2))
+summary(ftball.rmol.lm13)
+step(ftball.rmol.lm13)
+plot(ftball.rmol.lm13)
+```
+The R square is the same  but there is a slight increase in F statistic. But the model has too many coefficients. The residual plot is the same as model 11.
+Model 13.1: Lowest AIC of Model 13
+
+
+```{r}
+ftball.rmol.lm13.1<-lm(ftball.rmol$potential ~ ftball.rmol$wage_eur + ftball.rmol$age + 
+    ftball.rmol$shooting + ftball.rmol$dribbling + ftball.rmol$defending + 
+    ftball.rmol$power_long_shots + ftball.rmol$high.wage.ind + 
+    I(ftball.rmol$shooting^2) + I(ftball.rmol$dribbling^2) + 
+    I(ftball.rmol$height_cm^2) + I(ftball.rmol$defending^2) + 
+    ftball.rmol$wage_eur:ftball.rmol$age + ftball.rmol$wage_eur:ftball.rmol$shooting + 
+    ftball.rmol$age:ftball.rmol$shooting + ftball.rmol$wage_eur:ftball.rmol$dribbling + 
+    ftball.rmol$age:ftball.rmol$dribbling + ftball.rmol$shooting:ftball.rmol$dribbling + 
+    ftball.rmol$wage_eur:ftball.rmol$defending + ftball.rmol$age:ftball.rmol$defending + 
+    ftball.rmol$shooting:ftball.rmol$defending + ftball.rmol$dribbling:ftball.rmol$defending + 
+    ftball.rmol$wage_eur:ftball.rmol$age:ftball.rmol$shooting + 
+    ftball.rmol$wage_eur:ftball.rmol$shooting:ftball.rmol$dribbling + 
+    ftball.rmol$age:ftball.rmol$shooting:ftball.rmol$dribbling + 
+    ftball.rmol$wage_eur:ftball.rmol$age:ftball.rmol$defending + 
+    ftball.rmol$wage_eur:ftball.rmol$shooting:ftball.rmol$defending + 
+    ftball.rmol$age:ftball.rmol$shooting:ftball.rmol$defending + 
+    ftball.rmol$wage_eur:ftball.rmol$dribbling:ftball.rmol$defending + 
+    ftball.rmol$age:ftball.rmol$dribbling:ftball.rmol$defending + 
+    ftball.rmol$shooting:ftball.rmol$dribbling:ftball.rmol$defending + 
+    ftball.rmol$wage_eur:ftball.rmol$shooting:ftball.rmol$dribbling:ftball.rmol$defending)
+
+summary(ftball.rmol.lm13)
+plot(ftball.rmol.lm13)
+                               
+```
+There was no improvement in the model although the residual plot looks decent and 0.81 of variance is explained, there are lot of coefficients with interactions and not significant. Hence this model is not preferred.
+
+
+## 3.2 Critique model using relevant diagnostics
+
+
+The best model found in the section 3.1 is model 6. 
+```{r}
+summary(ftball.new.lm6)
+plot(ftball.new.lm6)
+```
+
+
+Model 6: $$potential=45.96+0.0003\times \text{wage_eur}-0.59\times \text{age}+0.077\times \text{height_cm}+0.14\times \text{shooting}+0.22\times \text{dribbling}+0.105\times \text{defending}+0.052\times \text{physic}-0.096\times \text{power_long_shots}+3.89\times \text{high.wage.ind}$$
+
+The Variance explained is 0.61 R square, and the F statistic is 90.77. It is the model without interaction that is the best model from the above section as it goes in hand with the principle of parsimony that the simplest model is the best model and does not have too much co- efficients giving us the best R square and F statistics, and with all variables significant. 
+
+The drawback is that the residual vs fitted in residual plot seem to be centered and could be a little hetereskedacious, although the points align along the QQ plot.
+
+
+
+## 3.3 Suggest improvements to your model
+
+
+
+The possible alternative approaches to improve the model are:
+1. Log transformation on the model to decrease heteroskedacity and centered distribution of residuals.
+2. Try the model without outliers to see if there is any improvement in the model.
+
+
+1.Log Transformations
+
+Model 5.1 : Log transform of Model 5
+
+```{r}
+ftball.new.lm5.1<-lm(log(ftball.new$potential)~ftball.new$sofifa_id+ftball.new$wage_eur+ftball.new$age+ftball.new$height_cm+ftball.new$weight_kg+ftball.new$preferred_foot+ftball.new$pace+ftball.new$shooting+ftball.new$passing+ftball.new$dribbling+ftball.new$defending+ftball.new$physic+ftball.new$power_strength+ftball.new$power_long_shots+ftball.new$high.wage.ind)
+summary(ftball.new.lm5.1)
+step(ftball.new.lm5.1)
+plot(ftball.new.lm5.1)
+```
+Model 5.2: Lowest AIC model from Model 5.1
+
+```{r}
+ftball.new.lm5.2<-lm(log(ftball.new$potential) ~ ftball.new$wage_eur + ftball.new$age + 
+    ftball.new$height_cm + ftball.new$shooting + ftball.new$passing + 
+    ftball.new$dribbling + ftball.new$defending + ftball.new$physic + 
+    ftball.new$power_long_shots + ftball.new$high.wage.ind)
+summary(ftball.new.lm5.2)
+
+plot(ftball.new.lm5.2)
+```
+The  Log tranformations done on Model 5 and lowest AIC taken from the step function from model 5 did not result in decreasing heteroskedacity. Although it improved the F statistic from the previous model 5. it still does not beat model 6 as the best model.
+
+
+Applying log tranformation on model 6 to check in the decrease of heteroskedacity.
+
+Model 6.1: Log transformation of Model 6
+```{r}
+ftball.new.lm6.1<-lm(log(ftball.new$potential) ~ ftball.new$wage_eur + ftball.new$age + 
+    ftball.new$height_cm + ftball.new$shooting + ftball.new$dribbling + 
+    ftball.new$defending + ftball.new$physic + ftball.new$power_long_shots + 
+    ftball.new$high.wage.ind)
+summary(ftball.new.lm6.1)
+plot(ftball.new.lm6.1)
+```
+Applying Log transformation on model 6 decreased the goodness of fit and did not improve the residual plot indicating that log transformation is not helping to improve the model in any way.
+
+
+
+
+2. Now lets consider modelling the data without outliers with the best model, model 6 to see if there are any improvements using the data frame ftball.rmol
+
+Model 12:
+
+```{r}
+ftball.rmol.lm12<-lm(ftball.rmol$potential ~ ftball.rmol$wage_eur + ftball.rmol$age + 
+    ftball.rmol$height_cm + ftball.rmol$shooting + ftball.rmol$dribbling + 
+    ftball.rmol$defending + ftball.rmol$physic + ftball.rmol$power_long_shots + 
+    ftball.rmol$high.wage.ind)
+summary(ftball.rmol.lm12)
+plot(ftball.rmol.lm12)
+```
+Model 12 improves the model to a large extent as it improves both R squared value (0.65 variance explained) and F statistic(103.9). It also has less coefficients with all variables significant. The residual plots of model 12 have also improved and shows a decrease in heteroskedacity, as residuals are distributed uniformly. This is the best obtained model for the given data.
+
+
+Model 12: 
+$$potential=48.30+0.0004\times \text{wage_eur}-0.72\times \text{age}+0.078\times \text{height_cm}+0.14\times \text{shooting}+0.212\times \text{dribbling}+0.11\times \text{defending}+0.052\times \text{physic}-0.081\times \text{power_long_shots}+3.80\times \text{high.wage.ind}$$
+
+# 4. Extension work
+
+## 4.1 Model the likelihood of a player having a weekly wage above 8000 Euro (using the high.wage.ind variable provided).
+
+
+If the wage_eur of a  player is >8000, high.wage.ind is 1
+If the wage_eur of a  player is <8000, high.wage.ind is 0
+
+A table is tabluated from wage_eur>8000 and high.wage.ind using frball.rmol(without outliers) data frame.
+
+```{r}
+table(ftball.rmol$wage_eur>8000,ftball.rmol$high.wage.ind)
+```
+
+```{r}
+#since the high.wage.ind column is in numeric, it is converted into factor before modelling.
+ftball.rmol$high.wage.ind<-as.factor(ftball.rmol$high.wage.ind)
+```
+
+Creating a logistic regression model for high wage index as high.wage.ind is a binomial distribution which  decides a player getting a highwage or not. Hence to find the likelyhood, using a logistic regression using the glm function with high.wage.ind as the dependent variable would be the right approach here.
+
+Logistic regression:
+Taking all variables as explanatory variables for high.wage.ind as dependent variable.
+GLM Model 1:
+```{r}
+ftball.wageind.glm1<-glm(high.wage.ind ~ .,family="binomial", data=ftball.rmol)
+summary(ftball.wageind.glm1)
+```
+Taking step function for the above model to simplify it
+
+
+```{r}
+step(ftball.wageind.glm1)
+```
+The final variable in the step function is wage_eur with AIC 4.
+modelling the summary statistics for the lowest AIC in GLM model 1 we get:
+
+GLM model 2:
+```{r}
+ftball.wageind.glm2<-glm(high.wage.ind ~ wage_eur,family="binomial", data=ftball.rmol)
+summary(ftball.wageind.glm2)
+plot(ftball.wageind.glm2)
+```
+The variable obtained is not significant.
+
+Now checking the interaction of high.wage.ind with other variables using regression tree:
+
+```{r}
+ftball.wage.tree<-tree(ftball.rmol$high.wage.ind~., data=ftball.rmol)
+plot(ftball.wage.tree)
+text(ftball.wage.tree,label="yval",cex=0.6,xpd=TRUE)
+```
+This could be because of multi-collinearity in the variable. It is suggested to remove  the variable (wage_eur) and try the modelling again.
+
+"Multicollinearity occurs when independent variables in a regression model are correlated. This correlation is a problem because independent variables should be independent. If the degree of correlation between variables is high enough, it can cause problems when you fit the model and interpret the results." - Statistics by Jim
+
+Finding regression tree without wage_eur, we get:
+
+```{r}
+ftball.wage.tree1<-tree(ftball.rmol$high.wage.ind~.-wage_eur, data=ftball.rmol)
+plot(ftball.wage.tree1)
+text(ftball.wage.tree1,label="yval",cex=0.6,xpd=TRUE)
+```
+Here in the regression tree, dribbling is the main variable, having an interaction with passing, defending shooting and pace.
+
+
+Glm model without wage is done, to check if other variables can be in the model if wage_eur is taken out
+
+GLM model 3:
+
+```{r}
+ftball.wage.glm3<-glm(high.wage.ind~.-wage_eur,family = "binomial", data = ftball.rmol)
+summary(ftball.wage.glm3)
+```
+Step function is performed on model 3
+
+```{r}
+step(ftball.wage.glm3)
+```
+Summary statistics and modelling is done on the lowest scoring AIC model from model 3
+
+GLM model 4: Lowest AIC model from glm model 3
+```{r}
+ftball.wageind.glm4<-glm(high.wage.ind ~ potential + age + height_cm + pace + 
+    passing, family = "binomial", data = ftball.rmol)
+
+summary(ftball.wageind.glm4)
+plot(ftball.wageind.glm4)
+```
+All the variables are significant and less coefficients are obtained from the model.The AIC obtained in 295
+
+And we can interpret the model as follows:
+
+
+$$log(\frac{p}{1-p})==-63.12+0.40 \times \text{potential}+0.37\times \text{age}+0.081\times \text{height_cm}+0.047\times \text{pace}+0.083\times \text{passing}$$
+
+To find the likelihood of player, odds ratio is performed for the above GLM model 4.
+
+
+
+```{r}
+exp(coef(ftball.wageind.glm4))
+```
+The odds ratio says:
+the odds of increase in potential, age, height, pace and passing increases the liklihood of high.wage.ind, since all are above 1.
+
+
+Trying the GLM model With Interactions, with respect to the interactions found in the regression tree obtained earlier
+GLM model 5:
+```{r}
+ftball.wageind.glm5<-glm(high.wage.ind ~ potential + age + height_cm + pace + 
+    passing * dribbling * defending* shooting* pace , family = "binomial", data = ftball.rmol)
+
+summary(ftball.wageind.glm5)
+
+step(ftball.wageind.glm5)
+plot(ftball.wageind.glm5)
+```
+
+The summary of model 5 suggest that not all variables are significant hence step function is applied and an AIC of 277 is obtained (being the lowest AIC value obtained in GLM model)
+
+Model 6: Lowest AIc of Model 5 is modeled in model 6
+```{r}
+ftball.wageind.glm6 <-glm( high.wage.ind ~ potential + age + height_cm + pace + 
+    passing + dribbling + defending + shooting + passing:dribbling + 
+    passing:shooting + dribbling:shooting + defending:shooting + 
+    pace:defending + passing:dribbling:shooting, family = "binomial", 
+    data = ftball.rmol)
+summary(ftball.wageind.glm6)
+```
+Not all variables are significant in the above model with AIC 277. The model has lot of coefficients hence it might not be a better model to be considered to modeled against high.wage.ind.
+
+Hence The best model would be GLM model 4 to predict the probability of high.wage.ind for a player
+GLM Model 4:
+$$log(\frac{p}{1-p})==-63.12+0.40 \times \text{potential}+0.37\times \text{age}+0.081\times \text{height_cm}+0.047\times \text{pace}+0.083\times \text{passing}$$
+
+
+```{r}
+ftball.rmol$pwage8000<-predict(ftball.wageind.glm4, type="response")
+```
+
+The probability of each player getting a high wage is predicted in pwage8000 column in ftball.rmol data frame, which is shown in the summary statistics and head(ftball.rmol) below.
+```{r}
+
+summary(ftball.rmol)
+```
+```{r}
+head(ftball.rmol)
+```
+
+# References  
+https://www.r-bloggers.com/2016/01/how-to-detect-heteroscedasticity-and-rectify-it/
+
+Crawley, M.J., 2015.Statistics: an introduction using RJ Wiley, England.
+
+Kabacoff, R. (2015). R in Action: Data Analysis and Graphics With R (2nd ed.). Manning Publications.
+
+https://statisticsbyjim.com/regression/multicollinearity-in-regression-analysis/
+
+
+
+
+
