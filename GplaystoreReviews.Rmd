@@ -1,0 +1,552 @@
+---
+title: "Gplaystore+Reviews"
+author: "Amit"
+date: "09/04/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+---
+title: "gplay"
+author: "Amit"
+date: "27/02/2022"
+output: html_document
+---
+
+
+```{r}
+library("stringr")
+library("textcat")
+library("cld3")
+library("cld2")
+library("stopwords")
+library(skimr)
+library(stringr)
+library(lubridate)
+library(dplyr)
+```
+
+
+```{r}
+gplay<- read.csv("googleplaystore.csv")
+```
+```{r}
+str(gplay)
+```
+
+
+```{r}
+skim(gplay)
+```
+
+```{r}
+summary(gplay)
+```
+
+```{r}
+sum(is.na(gplay))
+```
+
+```{r}
+gplay1<-na.omit(gplay)
+```
+```{r}
+skim(gplay1)
+```
+```{r}
+which(gplay1=="")
+```
+```{r}
+gplay2<-replace(gplay1,gplay1=="", NA)
+#stri_replace()
+```
+```{r}
+which(gplay2=="")
+```
+```{r}
+skim(gplay2)
+```
+```{r}
+gplay2<-na.omit(gplay2)
+```
+
+```{r}
+skim(gplay2)
+```
+```{r}
+gplay2$Installs<-as.character(gplay2$Installs)
+```
+```{r}
+skim(gplay2)
+```
+
+
+
+```{r}
+gplay2$Installs<-str_sub(gplay2$Installs,start=0,end=-2)
+```
+
+```{r}
+skim(gplay2)
+```
+
+```{r}
+which(gplay2=="NaN")
+```
+
+
+```{r}
+gplay2<-replace(gplay2,gplay2=="NaN", NA)
+```
+
+```{r}
+which(is.na(gplay2))
+```
+```{r}
+gplay2<-na.omit(gplay2)
+```
+```{r}
+skim(gplay2)
+```
+```{r}
+# table(grep("[a-z]*.;+",gplay2$Genres,ignore.case = TRUE, value= TRUE))
+```
+```{r}
+length(which(gplay2$Price!="0"))
+nrow(gplay2)
+```
+```{r}
+gplay2$Price<-str_sub(gplay2$Price,start=2,end=-1)
+gplay2$Price[gplay2$Price==""]="0"
+head(gplay2$Price[gplay2$Price!=0])
+```
+```{r}
+gplay2$Price[gplay2$Price!=0]
+```
+
+
+```{r}
+gplay2$Price<-as.numeric(gplay2$Price)
+```
+
+
+
+```{r}
+gplay2$Last.Updated<-mdy(gplay2$Last.Updated)
+
+```
+
+```{r}
+
+colnames(gplay2)[8]<-"Price.USD"
+colnames(gplay2)
+```
+
+```{r}
+str(gplay2)
+```
+
+```{r}
+length(grep("M",gplay2$Size,ignore.case = TRUE, value=TRUE))
+length(grep("k",gplay2$Size,ignore.case = TRUE, value=TRUE))
+length(grep("Varies",gplay2$Size,ignore.case = TRUE, value=TRUE))
+length(gplay2$Size)
+```
+
+
+```{r}
+gplay2$Size<-gsub("M","MB",gplay2$Size)
+gplay2$Size<-gsub("k","KB",gplay2$Size)
+length(grep("MB",gplay2$Size,ignore.case = TRUE, value=TRUE))
+length(grep("kb",gplay2$Size,ignore.case = TRUE, value=TRUE))
+```
+
+```{r}
+length(which(gplay2$Content.Rating=="Mature 17+"))
+length(which(gplay2$Content.Rating=="Everyone 10+"))
+```
+```{r}
+gplay.dupli<-gplay2$App[c(which(duplicated(gplay2$App)==TRUE))]
+length(gplay.dupli)
+str_sort(gplay.dupli)
+```
+
+
+```{r}
+length(gplay2$App)
+gplay2<-slice(gplay2, -c(which(duplicated(gplay2$App)==TRUE)))
+length(gplay2$App)              
+            
+```
+```{r}
+gplay2$App[c(which(duplicated(gplay2$App)==TRUE))]
+```
+
+```{r}
+str(gplay2) 
+```
+```{r}
+gplay2$Reviews<-as.numeric(gplay2$Reviews)
+```
+
+
+```{r}
+gplay2$Installs<-gsub(",","",gplay2$Installs)
+```
+
+```{r}
+options(scipen = 100)
+gplay2$Installs<-as.integer(gplay2$Installs)
+```
+```{r}
+typeof(gplay2$Installs)
+```
+
+```{r}
+gplay2$Content.Rating<-gsub("Everyone ","",gplay2$Content.Rating)
+gplay2$Content.Rating<-gsub("Mature ","",gplay2$Content.Rating)
+gplay2$Content.Rating<-gsub("Adults only ","",gplay2$Content.Rating)
+```
+
+
+```{r}
+table(gplay2$Content.Rating)
+```
+```{r}
+gplay3<-slice(gplay2, -c(which(gplay2$Content.Rating=="Unrated")))
+```
+
+```{r}
+table(gplay3$Content.Rating)
+```
+```{r}
+grep("M",gplay3$Size,ignore.case = TRUE, value=TRUE)
+```
+
+```{r}
+length(grep("M",gplay3$Size,ignore.case = TRUE, value=TRUE))
+length(grep("k",gplay3$Size,ignore.case = TRUE, value=TRUE))
+length(grep("Varies",gplay3$Size,ignore.case = TRUE, value=TRUE))
+length(gplay3$Size)
+```
+
+```{r}
+gplay.size.mb<-grep("M",gplay3$Size,ignore.case = TRUE)
+gplay.size.kb<-grep("k",gplay3$Size,ignore.case = TRUE)
+gplay.varies<-grep("Varies",gplay3$Size,ignore.case = TRUE)
+```
+
+Normalizing KB to MB
+
+```{r}
+gplay3$Size.norm<-gplay3$Size
+gplay3$Size.norm[c(gplay.size.kb)]
+```
+
+```{r}
+# gplay3$Size.norm[c(gplay.size.kb)]<-gsub("KB","",gplay3$Size.norm)
+gplay3$Size.norm[c(gplay.size.kb)]<-str_sub(gplay3$Size.norm[c(gplay.size.kb)],start=0,end=-3)
+```
+```{r}
+gplay3$Size.norm[c(gplay.size.kb)]
+# grep(" [0-9",gplay3$Size.norm,ignore.case = TRUE, value = TRUE)
+```
+```{r}
+gplay3$Size.norm[c(gplay.size.mb)]
+```
+
+
+```{r}
+gplay3$Size.norm[c(gplay.size.mb)]<-str_sub(gplay3$Size.norm[c(gplay.size.mb)],start=0,end=-3)
+```
+
+```{r}
+gplay3$Size.norm[c(gplay.size.mb)]
+```
+```{r}
+length(gplay3$Size.norm[c(gplay.varies)])
+gplay3$Size.norm[c(gplay.varies)]<-"0"
+length(which(gplay3$Size.norm=="0"))
+```
+
+
+```{r}
+
+gplay3$Size.norm<-as.numeric(gplay3$Size.norm)
+length(gplay3$Size.norm[c(gplay.size.mb)])
+length(gplay3$Size.norm[c(gplay.size.kb)])
+length(gplay3$Size.norm[c(gplay.varies)])
+typeof(gplay3$Size.norm)
+```
+```{r}
+gplay3$Size.norm[c(gplay.size.kb)]
+```
+
+
+
+```{r}
+gplay3$Size.norm[c(gplay.size.kb)]<-gplay3$Size.norm[c(gplay.size.kb)]*0.001
+```
+
+```{r}
+gplay3$Size.norm[c(gplay.size.kb)]
+```
+```{r}
+gplay3$Size.norm<-round(gplay3$Size.norm,digits=2)
+```
+```{r}
+gplay3$Size.norm[c(gplay.size.kb)]
+```
+```{r}
+gplay3$Size.norm[c(gplay.size.mb)]
+```
+
+```{r}
+colnames(gplay3)
+colnames(gplay3)[14]<-"Size.Normalized(MB)"
+colnames(gplay3)
+```
+```{r}
+table(gplay3$Android.Ver)
+```
+
+```{r}
+# write.csv(gplay2,"gplaystore.complete.csv",row.names=FALSE)
+```
+
+```{r}
+# write.csv(gplay3,"gplaystore.final.csv",row.names=FALSE)
+```
+
+
+
+
+-------------------------------------------------------------**********************
+Reviews file analysis
+
+
+```{r}
+library(dplyr)
+library(skimr)
+```
+
+```{r}
+reviews<- read.csv("googleplaystore_user_reviews.csv")
+```
+
+```{r}
+summary(reviews)
+```
+```{r}
+View(reviews)
+```
+
+
+```{r}
+sum(is.na(reviews))
+```
+```{r}
+reviews1<-na.omit(reviews)
+length(which(is.na(reviews1)))
+sum(is.na(reviews1))
+```
+```{r}
+# reviews<-subset(reviews, reviews$Translated_Review!='nan')
+```
+
+```{r}
+#sum(is.null(olympics))
+skim(reviews1)
+```
+
+
+```{r}
+which(reviews1$Translated_Review=="")
+```
+
+```{r}
+reviews2<-slice(reviews1, -c(which(reviews1$Translated_Review=="")))
+```
+
+```{r}
+
+skim(reviews2)
+```
+```{r}
+reviews2$Sentiment_Polarity<- round(reviews2$Sentiment_Polarity,digit=1)
+reviews2$Sentiment_Subjectivity<- round(reviews2$Sentiment_Subjectivity,digit=1)
+```
+
+```{r}
+str(reviews2)
+```
+
+
+
+
+```{r}
+View(reviews2)
+```
+
+
+
+
+Calculating the average sentiment score, polarity and subjectivity for an App
+```{r}
+reviews2$App<-sort(reviews2$App)
+```
+```{r}
+colnames(reviews2)
+```
+```{r}
+review.new<-aggregate(reviews2[, 4:5], list(reviews2$App), mean)
+colnames(review.new)[1]<-"App"
+review.new
+```
+
+
+```{r}
+Mode <- function(x) {
+  ux <- unique(x)
+  ux[which.max(tabulate(match(x, ux)))]
+}
+
+review.Avg.Sent<-aggregate(Sentiment ~ App, reviews2, Mode)
+colnames(review.Avg.Sent)[2]<-"Average.Sentiment.Score"
+review.Avg.Sent
+```
+
+
+```{r}
+df_reviews = reviews2 %>% group_by(App, Sentiment) %>%
+                   summarise(cnt=n()) %>% mutate(freq = round(cnt / sum(cnt), 3)) 
+
+df_reviews
+
+```
+
+```{r}
+df_reviews<-as.data.frame(df_reviews)
+```
+
+```{r}
+review.pos<-subset(df_reviews,df_reviews$Sentiment=="Positive")
+review.neg<-subset(df_reviews,df_reviews$Sentiment=="Negative")
+review.neu<-subset(df_reviews,df_reviews$Sentiment=="Neutral")
+```
+
+```{r}
+table(review.pos$Sentiment)
+table(review.neg$Sentiment)
+table(review.neu$Sentiment)
+```
+
+```{r}
+review.pos
+review.neg
+review.neu
+```
+```{r}
+
+colnames(review.pos)[4]<-"Sentiment_Positive.Perc"
+colnames(review.neg)[4]<-"Sentiment_Negative.Perc"
+colnames(review.neu)[4]<-"Sentiment_Neutral.Perc"
+```
+```{r}
+review.pos<-subset(review.pos,select=-c(2,3))
+review.neg<-subset(review.neg,select=-c(2,3))
+review.neu<-subset(review.neu,select=-c(2,3))
+```
+```{r}
+review.Avg.Sent
+review.pos
+review.neg
+review.neu
+review.new
+```
+```{r}
+reviews3<-merge(review.Avg.Sent, review.pos,by=c("App"), all=TRUE)
+reviews3<-merge(reviews3, review.neg,by=c("App"), all=TRUE)
+reviews3<-merge(reviews3, review.neu,by=c("App"), all=TRUE)
+reviews3<-merge(reviews3, review.new,by=c("App"), all=TRUE)
+```
+
+```{r}
+skim(reviews3)
+```
+
+
+
+```{r}
+sum(is.na(reviews3))
+```
+```{r}
+reviews3[is.na(reviews3)] <- 0
+```
+```{r}
+skim(reviews3)
+```
+```{r}
+colnames(reviews3)[6]<-"Avg.Sentiment_Polarity"
+colnames(reviews3)[7]<-"Avg.Sentiment_Subjectivity"
+```
+```{r}
+skim(reviews3)
+```
+```{r}
+str(reviews3)
+```
+
+```{r}
+
+reviews3$Avg.Sentiment_Polarity<- round(reviews3$Avg.Sentiment_Polarity,digit=2)
+reviews3$Avg.Sentiment_Subjectivity<- round(reviews3$Avg.Sentiment_Subjectivity,digit=2)
+reviews3$Sentiment_Positive.Perc<- round(reviews3$Sentiment_Positive.Perc,digit=2)
+reviews3$Sentiment_Negative.Perc<- round(reviews3$Sentiment_Negative.Perc,digit=2)
+reviews3$Sentiment_Neutral.Perc<- round(reviews3$Sentiment_Neutral.Perc,digit=2)
+
+```
+
+```{r}
+# write.csv(reviews2,"Reviews.Complete.csv",row.names=FALSE)
+```
+```{r}
+# write.csv(reviews3,"Reviews.Analysed.csv",row.names=FALSE)
+```
+
+
+
+
+-------------------------------------------------******************
+Merging both data sets
+
+```{r}
+gplay3$App<-sort(gplay3$App)
+
+gplay4<-gplay3[gplay3$App %in% reviews3$App,]
+# gplay4<-semi_join(gplay3,reviews3, by="App")
+gplay4
+```
+```{r}
+# reviews4<-semi_join(reviews3,gplay3, by="App")
+reviews4<-reviews3[reviews3$App %in% gplay3$App,]
+reviews4
+```
+
+
+
+```{r}
+gplay.reviews<-merge(gplay4, reviews4,by="App")
+gplay.reviews
+gplay.reviews<-as.data.frame(gplay.reviews)
+```
+
+```{r}
+write.csv(gplay.reviews,"Gplay_Reviews.csv",row.names=FALSE)
+```
+

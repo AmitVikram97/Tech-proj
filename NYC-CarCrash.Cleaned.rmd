@@ -1,0 +1,2480 @@
+---
+title: "NYC Car Crash"
+author: "Amit"
+date: "23/02/2022"
+output: ''
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+```{r}
+library("plyr")
+library(dplyr)
+library(skimr)
+library(stringr)
+library("sjmisc")
+library("stringdist")
+library(ggplot2)
+library("naniar")
+library(lubridate)
+library("ggthemes")
+library("tidyverse")
+library("leaflet")
+library(corrplot)
+library(cluster)
+library("data.table")
+library(mltools)
+library("devtools")
+library("caret")
+library("factoextra")
+```
+
+
+
+```{r}
+# nyc<-read.csv("Motor_Vehicle_Collisions_-_Crashes.csv")
+nyc<-read.csv("Motor_Vehicle_Collisions_-_Crashes.csv", na.strings = c(NA,"NA"," NA",""))
+View(nyc)
+```
+```{r}
+head(nyc)
+```
+
+```{r}
+skim(nyc)
+```
+```{r}
+str(nyc)
+```
+```{r}
+summary(nyc)
+```
+```{r}
+length(which(is.na(nyc)==TRUE))
+length(which(nyc==""))
+sum(is.na(nyc))
+nrow(nyc)
+```
+```{r}
+nyc1<-nyc
+```
+
+```{r}
+head(nyc1)
+```
+
+```{r}
+nyc.na.cnt<-apply(is.na(nyc1), 2, sum)
+nyc.na.cnt
+```
+
+```{r}
+nyc.na.perc<-nyc.na.cnt / dim(nyc1)[1]*100
+format(round(nyc.na.perc, 2), nsmall = 2)
+```
+```{r}
+gg_miss_var(nyc1,show_pct = TRUE)
+```
+```{r}
+colnames(nyc1)
+```
+
+
+Removing Columns:CONTRIBUTING.FACTOR.VEHICLE.3,CONTRIBUTING.FACTOR.VEHICLE.4,CONTRIBUTING.FACTOR.VEHICLE.5,VEHICLE.TYPE.CODE.3,VEHICLE.TYPE.CODE.4,VEHICLE.TYPE.CODE.5,OFF.STREET.NAME as more than 80% of their data is missing.
+
+
+```{r}
+nyc1.clean<-select(nyc1, -c(CONTRIBUTING.FACTOR.VEHICLE.3,CONTRIBUTING.FACTOR.VEHICLE.4,CONTRIBUTING.FACTOR.VEHICLE.5,VEHICLE.TYPE.CODE.3,VEHICLE.TYPE.CODE.4,VEHICLE.TYPE.CODE.5,OFF.STREET.NAME))
+```
+
+
+
+```{r}
+summary(nyc1.clean)
+```
+```{r}
+skim(nyc1.clean)
+```
+
+```{r}
+ncol(nyc1.clean)
+colnames(nyc1.clean)
+```
+Cleaning Data after removing the empty columns
+
+
+
+Removing NA values from the original data.
+
+
+```{r}
+nyc1.clean1<-na.omit(nyc1.clean)
+```
+
+```{r}
+sum(is.na(nyc1.clean1))
+length(which(is.na(nyc1.clean1)))
+length(which(nyc1.clean1==""))
+
+```
+```{r}
+nrow(nyc1)
+nrow(nyc1.clean1)
+```
+```{r}
+summary(nyc1.clean1)
+```
+
+
+```{r}
+skim(nyc1.clean1)
+```
+```{r}
+nyc1.clean3<-nyc1.clean1
+```
+
+
+***** 
+NA values and the missing values from the Data have been removed.
+The Remaining No.of.Rows = 803078 and 
+The Remaining No.of.Columns= 22.
+
+The next steps:
+
+1.Checking for duplicate entries
+2.Checking for inconsistency in the data.
+3.Checking for outliers in data
+4.Converting the required data into required data types
+
+
+
+1.Checking for duplicate entries:
+
+```{r}
+sum(duplicated(nyc1.clean3))
+```
+```{r}
+sum(duplicated(nyc1.clean3$COLLISION_ID))
+```
+No duplicate entries
+
+-----
+2.Checking for inconsistency in the data.
+
+```{r}
+table(nyc1.clean3$CONTRIBUTING.FACTOR.VEHICLE.1)
+```
+
+
+```{r}
+which(nyc1.clean3$CONTRIBUTING.FACTOR.VEHICLE.1=="80")
+```
+
+```{r}
+nyc1.clean4<-slice(nyc1.clean3,-c(which(nyc1.clean3$CONTRIBUTING.FACTOR.VEHICLE.1=="80")))
+```
+
+```{r}
+which(nyc1.clean4$CONTRIBUTING.FACTOR.VEHICLE.1=="80")
+```
+
+From the table above, Variable Inconsistencies found in CONTRIBUTING.FACTOR.VEHICLE.1 are: 
+
+1. '80' - 3 Instances - Hence Removed
+2. Drugs (illegal) for Drugs (Illegal), 
+3. Cell Phone (hand-Held) for Cell Phone (hand-held), 
+4. Illnes for Illness
+5. Reaction to Other Uninvolved Vehicle for Reaction to Uninvolved Vehicle (extra 'other' word)
+
+
+
+```{r}
+nyc1.clean4$CONTRIBUTING.FACTOR.VEHICLE.1[c(which(nyc1.clean4$CONTRIBUTING.FACTOR.VEHICLE.1=="Drugs (illegal)"))]="Drugs (Illegal)"
+nyc1.clean4$CONTRIBUTING.FACTOR.VEHICLE.1[c(which(nyc1.clean4$CONTRIBUTING.FACTOR.VEHICLE.1=="Cell Phone (hand-Held)"))]="Cell Phone (hand-held)"
+nyc1.clean4$CONTRIBUTING.FACTOR.VEHICLE.1[c(which(nyc1.clean4$CONTRIBUTING.FACTOR.VEHICLE.1=="Illnes"))]="Illness"
+nyc1.clean4$CONTRIBUTING.FACTOR.VEHICLE.1[c(which(nyc1.clean4$CONTRIBUTING.FACTOR.VEHICLE.1=="Reaction to Other Uninvolved Vehicle"))]="Reaction to Uninvolved Vehicle"
+
+```
+
+
+
+```{r}
+table(nyc1.clean4$CONTRIBUTING.FACTOR.VEHICLE.1)
+```
+Checking the same for  CONTRIBUTING.FACTOR.VEHICLE.2:
+
+```{r}
+table(nyc1.clean3$CONTRIBUTING.FACTOR.VEHICLE.2)
+```
+From the table above, Variable Inconsistencies found in CONTRIBUTING.FACTOR.VEHICLE.2 are: 
+
+1. '80' - 3 Instances - Hence Removed
+2. Drugs (illegal) for Drugs (Illegal), 
+3. Cell Phone (hand-Held) for Cell Phone (hand-held), 
+4. Illnes for Illness
+5. Reaction to Other Uninvolved Vehicle for Reaction to Uninvolved Vehicle (extra 'other' word)
+
+```{r}
+nyc1.clean4<-slice(nyc1.clean4,-c(which(nyc1.clean4$CONTRIBUTING.FACTOR.VEHICLE.2=="80")))
+nyc1.clean4$CONTRIBUTING.FACTOR.VEHICLE.2[c(which(nyc1.clean4$CONTRIBUTING.FACTOR.VEHICLE.2=="Drugs (illegal)"))]="Drugs (Illegal)"
+nyc1.clean4$CONTRIBUTING.FACTOR.VEHICLE.2[c(which(nyc1.clean4$CONTRIBUTING.FACTOR.VEHICLE.2=="Cell Phone (hand-Held)"))]="Cell Phone (hand-held)"
+nyc1.clean4$CONTRIBUTING.FACTOR.VEHICLE.2[c(which(nyc1.clean4$CONTRIBUTING.FACTOR.VEHICLE.2=="Illnes"))]="Illness"
+nyc1.clean4$CONTRIBUTING.FACTOR.VEHICLE.2[c(which(nyc1.clean4$CONTRIBUTING.FACTOR.VEHICLE.2=="Reaction to Other Uninvolved Vehicle"))]="Reaction to Uninvolved Vehicle"
+
+```
+```{r}
+table(nyc1.clean4$CONTRIBUTING.FACTOR.VEHICLE.2)
+```
+```{r}
+nrow(nyc1.clean4)
+```
+
+
+
+```{r}
+table(nyc1.clean4$VEHICLE.TYPE.CODE.1)
+```
+
+
+From the table above, Variable Inconsistencies found in VEHICLE.TYPE.CODE.1, are:
+
+1.Ambulance
+2.Box Truck
+3.Bus
+4.Commercial
+5.Cargo
+6.Delivery
+7.Dump Truck
+8.E-bike
+9.E-Scooter
+10.FDNY/Fire Engine/Fire Truck
+11.Food Truck
+12.Ford
+13.Freight
+14.Garbage Truck
+15.Horse
+16.Limo
+17.Mack Truck
+18.Mail Truck
+19.Motor Cycle
+20.Motor Bike
+21.Motor Scooter
+22.Passenger vehicle
+23.Pedicab
+24.Pick up Truck
+25.Postal Service Vehicle
+26.Refrigirated Van
+27.RV
+28.Sanitary Vehicle
+28.School Bus/Van
+29.Scooter
+30.Sedan
+31.Segway
+32.Semi
+33.Tanker
+34.Taxi
+35.Tow-Truck
+36.Tractor
+37.Trailer
+38.Truck
+39.Usps Truck
+
+
+Remaining to Other and Unknown
+
+```{r}
+table(grep("Amb",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+length(grep("Amb",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))
+```
+
+
+```{r}
+d2<-grep("Amb",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE)
+```
+
+
+```{r}
+nyc1.clean4$VEHICLE.TYPE.CODE.1[c(d2)]="Ambulance"
+```
+
+
+```{r}
+table(grep("Amb",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+```
+```{r}
+table(grep("box",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+length(grep("box",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))
+```
+```{r}
+d3<-grep("box",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE)
+nyc1.clean4$VEHICLE.TYPE.CODE.1[c(d3)]="Box Truck"
+table(grep("box",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+```
+```{r}
+table(grep("^bus",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+length(grep("^bus",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))
+```
+```{r}
+d4<-grep("^bus",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE)
+nyc1.clean4$VEHICLE.TYPE.CODE.1[c(d4)]="Bus"
+table(grep("^bus",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+```
+```{r}
+table(grep("^com",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+length(grep("^com",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))
+```
+```{r}
+grep("^com",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE)
+nyc1.clean4$VEHICLE.TYPE.CODE.1[c(grep("^com",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))]="Commercial"
+table(grep("^com",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+```
+
+```{r}
+table(grep("^cargo",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+length(grep("^cargo",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))
+```
+```{r}
+grep("^cargo",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE)
+nyc1.clean4$VEHICLE.TYPE.CODE.1[c(grep("^cargo",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))]="Cargo"
+table(grep("^cargo",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+```
+
+```{r}
+table(grep("^de",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+length(grep("^de",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))
+```
+```{r}
+grep("^de",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE)
+nyc1.clean4$VEHICLE.TYPE.CODE.1[c(grep("^de",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))]="Delivery Vehicle"
+table(grep("^de",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+```
+
+```{r}
+table(grep("^dump",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+length(grep("^dump",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))
+```
+
+```{r}
+nyc1.clean4$VEHICLE.TYPE.CODE.1[c(grep("^dump",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))]="Dump Truck"
+table(grep("^dump",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+```
+
+```{r}
+table(grep("^E[- ]*bi",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+length(grep("^E[- ]*bi",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))
+```
+```{r}
+nyc1.clean4$VEHICLE.TYPE.CODE.1[c(grep("^E[- ]*bi",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))]="E-Bike"
+table(grep("^E[- ]*bi",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+```
+
+```{r}
+table(grep("^E[- ]*sc",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+length(grep("^E[- ]*sc",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))
+```
+
+
+```{r}
+nyc1.clean4$VEHICLE.TYPE.CODE.1[c(grep("^E[- ]*sc",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))]="E-Scooter"
+table(grep("^E[- ]*sc",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+```
+
+
+```{r}
+table(grep("^fd|fir",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+length(grep("^fd|fir",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))
+```
+```{r}
+nyc1.clean4$VEHICLE.TYPE.CODE.1[c(grep("^fd|fir",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))]="FDNY Vehicles (Fire Engines/Trucks)"
+table(grep("^fd|fir",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+```
+
+```{r}
+table(grep("^foo",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+length(grep("^foo",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))
+```
+
+```{r}
+nyc1.clean4$VEHICLE.TYPE.CODE.1[c(grep("^foo",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))]="Food Truck"
+table(grep("^foo",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+```
+```{r}
+table(grep("ford",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+length(grep("ford",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))
+```
+
+```{r}
+nyc1.clean4$VEHICLE.TYPE.CODE.1[c(grep("ford",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))]="Ford"
+table(grep("ford",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+```
+```{r}
+table(grep("^fr[ei]*[g|h]+",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+length(grep("^fr[ei]*[g|h]+",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))
+```
+```{r}
+nyc1.clean4$VEHICLE.TYPE.CODE.1[c(grep("^fr[ei]*[g|h]+",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))]="Freight"
+table(grep("^fr[ei]*[g|h]+",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+```
+```{r}
+table(grep("^gar",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+length(grep("^gar",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))
+```
+
+```{r}
+nyc1.clean4$VEHICLE.TYPE.CODE.1[c(grep("^gar",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))]="Garbage or Refuse Vehicles"
+table(grep("^gar",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+```
+```{r}
+table(grep("^lim",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+length(grep("^lim",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))
+```
+
+```{r}
+nyc1.clean4$VEHICLE.TYPE.CODE.1[c(grep("^lim",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))]="Limo"
+table(grep("^lim",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+```
+```{r}
+table(grep("^mac",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+length(grep("^mac",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))
+```
+
+```{r}
+nyc1.clean4$VEHICLE.TYPE.CODE.1[c(grep("^mac",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))]="Mack Truck"
+table(grep("^mac",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+```
+```{r}
+table(grep("^mai",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+length(grep("^mai",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))
+```
+
+```{r}
+nyc1.clean4$VEHICLE.TYPE.CODE.1[c(grep("^mai",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))]="Mail Truck"
+table(grep("^mai",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+```
+```{r}
+table(grep("^mo([ped]*.[ped+])",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+length(grep("^mo([ped]*.[ped+])",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))
+```
+
+```{r}
+nyc1.clean4$VEHICLE.TYPE.CODE.1[c(grep("^mo([ped]*.[ped+])",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))]="Moped"
+table(grep("^mo([ped]*.[ped+])",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+```
+```{r}
+table(grep("^motorcycle",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+length(grep("^motorcycle",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))
+```
+
+```{r}
+nyc1.clean4$VEHICLE.TYPE.CODE.1[c(grep("^motorcycle",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))]="Motorcycle"
+table(grep("^motorcycle",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+```
+
+```{r}
+table(grep("^motor$|^motor ",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+length(grep("^motor$|^motor ",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))
+```
+
+```{r}
+d5<-grep("^motor$|^motor ",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE)
+nyc1.clean4<-slice(nyc1.clean4, -c(d5))
+table(grep("^motor$|^motor ",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+```
+```{r}
+table(grep("^pas",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+length(grep("^pas",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))
+```
+
+```{r}
+nyc1.clean4$VEHICLE.TYPE.CODE.1[c(grep("^pas",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))]="Passenger Vehicle"
+table(grep("^pas",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+```
+```{r}
+table(grep("^ped|^pc$",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+length(grep("^ped|^pc$",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))
+```
+
+```{r}
+nyc1.clean4$VEHICLE.TYPE.CODE.1[c(grep("^ped|^pc$",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))]="Pedicab"
+table(grep("^ped|^pc$",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+```
+```{r}
+table(grep("^pick|^pk",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+length(grep("^pick|^pk",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))
+```
+
+```{r}
+nyc1.clean4$VEHICLE.TYPE.CODE.1[c(grep("^pick|^pk",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))]="Pick-Up Truck"
+table(grep("^pick|^pk",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+```
+```{r}
+table(grep("^pos",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+length(grep("^pos",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))
+```
+
+```{r}
+nyc1.clean4$VEHICLE.TYPE.CODE.1[c(grep("^pos",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))]="Postal Service"
+table(grep("^pos",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+```
+```{r}
+table(grep("^ref",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+length(grep("^ref",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))
+```
+
+```{r}
+nyc1.clean4$VEHICLE.TYPE.CODE.1[c(grep("^ref",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))]="Refrigerated Van"
+table(grep("^ref",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+```
+```{r}
+table(grep("^rv|^r[/*]v",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+length(grep("^rv|^r[/*]v",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))
+```
+
+```{r}
+nyc1.clean4$VEHICLE.TYPE.CODE.1[c(grep("^rv|^r[/*]v",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))]="RV"
+table(grep("^rv|^r[/*]v",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+```
+```{r}
+table(grep("^san",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+length(grep("^san",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))
+```
+
+```{r}
+nyc1.clean4$VEHICLE.TYPE.CODE.1[c(grep("^san",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))]="Sanitary Vehicle"
+table(grep("^san",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+```
+```{r}
+table(grep("^sch",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+length(grep("^sch",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))
+```
+
+```{r}
+nyc1.clean4$VEHICLE.TYPE.CODE.1[c(grep("^sch",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))]="School Bus"
+table(grep("^sch",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+```
+```{r}
+table(grep("^scoo",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+length(grep("^scoo",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))
+```
+
+```{r}
+nyc1.clean4$VEHICLE.TYPE.CODE.1[c(grep("^scoo",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))]="Scooter"
+table(grep("^scoo",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+```
+```{r}
+table(grep("^sed",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+length(grep("^sed",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))
+```
+
+```{r}
+nyc1.clean4$VEHICLE.TYPE.CODE.1[c(grep("^sed",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))]="Sedan"
+table(grep("^sed",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+```
+```{r}
+table(grep("^sem",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+length(grep("^sem",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))
+```
+
+```{r}
+nyc1.clean4$VEHICLE.TYPE.CODE.1[c(grep("^sem",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))]="Semi"
+table(grep("^sem",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+```
+```{r}
+table(grep("^stak",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+length(grep("^stak",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))
+```
+
+```{r}
+nyc1.clean4$VEHICLE.TYPE.CODE.1[c(grep("^stak",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))]="Stake"
+table(grep("^stak",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+```
+```{r}
+table(grep("^tank",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+length(grep("^tank",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))
+```
+
+```{r}
+nyc1.clean4$VEHICLE.TYPE.CODE.1[c(grep("^tank",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))]="Tanker"
+table(grep("^tank",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+```
+```{r}
+table(grep("^taxi",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+length(grep("^taxi",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))
+```
+
+```{r}
+nyc1.clean4$VEHICLE.TYPE.CODE.1[c(grep("^taxi",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))]="Taxi"
+table(grep("^taxi",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+```
+```{r}
+table(grep("^tow$|^tow ",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+length(grep("^tow$|^tow ",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))
+```
+
+```{r}
+nyc1.clean4$VEHICLE.TYPE.CODE.1[c(grep("^tow$|^tow ",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))]="Tow-Truck"
+table(grep("^tow$|^tow-",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+```
+```{r}
+table(grep("^trac",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+length(grep("^trac",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))
+```
+
+```{r}
+nyc1.clean4$VEHICLE.TYPE.CODE.1[c(grep("^trac",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))]="Tractor Truck Diesel/Gasoline"
+table(grep("^trac",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+```
+```{r}
+table(grep("^tr[l*]|^trai",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+length(grep("^tr[l*]|^trai",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))
+```
+
+```{r}
+nyc1.clean4$VEHICLE.TYPE.CODE.1[c(grep("^tr[l*]|^trai",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))]="Trailer"
+table(grep("^tr[l*]|^trai",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+```
+```{r}
+table(grep("^tru",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+length(grep("^tru",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))
+```
+
+```{r}
+nyc1.clean4$VEHICLE.TYPE.CODE.1[c(grep("^tru",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))]="Truck"
+table(grep("^tru",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+```
+```{r}
+table(grep("^us",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+length(grep("^us",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))
+```
+
+```{r}
+nyc1.clean4$VEHICLE.TYPE.CODE.1[c(grep("^us",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))]="US Postal Service"
+table(grep("^us",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+```
+```{r}
+table(grep("^ut",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+length(grep("^ut",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))
+```
+
+```{r}
+nyc1.clean4$VEHICLE.TYPE.CODE.1[c(grep("^ut",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))]="Utility Vehicle"
+table(grep("^ut",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+```
+```{r}
+table(grep("^van",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+length(grep("^van",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))
+```
+
+```{r}
+nyc1.clean4$VEHICLE.TYPE.CODE.1[c(grep("^van",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))]="Van"
+table(grep("^van",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+```
+
+```{r}
+table(grep("^wag",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+length(grep("^wag",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))
+```
+
+```{r}
+nyc1.clean4$VEHICLE.TYPE.CODE.1[c(grep("^wag",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))]="Wagon"
+table(grep("^wag",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+```
+```{r}
+table(grep("^un",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+length(grep("^un",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))
+```
+
+```{r}
+nyc1.clean4$VEHICLE.TYPE.CODE.1[c(grep("^un",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))]="Unknown"
+table(grep("^un",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+```
+
+
+
+
+
+
+```{r}
+table(nyc1.clean4$VEHICLE.TYPE.CODE.1)
+```
+Removing all the inconsistent variables with numeric and alpha  numeric values
+
+```{r}
+table(grep(" Whe+",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+length(grep(" Whe+",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))
+```
+```{r}
+d<-grep(" Whe+",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE)
+nyc1.clean4<-slice(nyc1.clean4, -c(d))
+table(grep(" Whe+",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+```
+
+```{r}
+table(grep("^[0-9]*$",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+length(grep("^[0-9]*$",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))
+```
+```{r}
+d1<-grep("^[0-9]*$",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE)
+nyc1.clean4<-slice(nyc1.clean4, -c(d1))
+table(grep("^[0-9]*$",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+```
+
+
+
+```{r}
+table(grep("^2 dr",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+length(grep("2 dr",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))
+```
+```{r}
+nyc1.clean4$VEHICLE.TYPE.CODE.1[c(grep("^2 dr",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))]="Sedan - 2 Door"
+table(grep("^sedan",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+```
+
+```{r}
+table(grep("^4 dr",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+length(grep("4 dr",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))
+```
+```{r}
+nyc1.clean4$VEHICLE.TYPE.CODE.1[c(grep("^4 dr",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))]="Sedan - 4 Door"
+table(grep("^sedan",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+```
+```{r}
+table(grep("^[0-9]",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+length(grep("^[0-9]",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))
+```
+
+
+```{r}
+d6<-grep("^[0-9]",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE)
+nyc1.clean4<-slice(nyc1.clean4, -c(d6))
+table(grep("^[0-9]",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+```
+
+```{r}
+table(nyc1.clean4$VEHICLE.TYPE.CODE.1)
+# table(grep("",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE, value=TRUE))
+# length(grep("^[0-9]",nyc1.clean4$VEHICLE.TYPE.CODE.1, ignore.case = TRUE))
+```
+```{r}
+one.num<-as.data.frame(plyr::count(nyc1.clean4$VEHICLE.TYPE.CODE.1))
+one.num1<-one.num[one.num$freq<=11,]
+```
+
+
+```{r}
+nyc1.clean5<-nyc1.clean4[ !nyc1.clean4$VEHICLE.TYPE.CODE.1 %in% one.num1$x,]
+```
+
+
+```{r}
+table(nyc1.clean5$VEHICLE.TYPE.CODE.1)
+nrow(nyc1.clean5)
+
+
+```
+
+```{r}
+nyc.cnt<-plyr::count(nyc1.clean5$VEHICLE.TYPE.CODE.1)
+nyc.cnt
+```
+
+
+```{r}
+barplot(nyc.cnt$freq~nyc.cnt$x)
+```
+
+
+
+-----------
+
+
+```{r}
+table(nyc1.clean5$VEHICLE.TYPE.CODE.2)
+```
+
+```{r}
+table(grep("Amb",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+length(grep("Amb",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))
+```
+```{r}
+nyc1.clean5$VEHICLE.TYPE.CODE.2[c(grep("Amb",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))]="Ambulance"
+table(grep("Amb",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+```
+```{r}
+table(grep("box",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+length(grep("box",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))
+```
+```{r}
+nyc1.clean5$VEHICLE.TYPE.CODE.2[c(grep("box",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))]="Box Truck"
+table(grep("box",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+```
+
+```{r}
+table(grep("^bus",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+length(grep("^bus",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))
+```
+```{r}
+nyc1.clean5$VEHICLE.TYPE.CODE.2[c(grep("^bus",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))]="Bus"
+table(grep("^bus",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+```
+```{r}
+table(grep("^com",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+length(grep("^com",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))
+```
+```{r}
+nyc1.clean5$VEHICLE.TYPE.CODE.2[c(grep("^com",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))]="Commercial"
+table(grep("^com",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+```
+```{r}
+table(grep("^cargo",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+length(grep("^cargo",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))
+```
+```{r}
+nyc1.clean5$VEHICLE.TYPE.CODE.2[c(grep("^cargo",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))]="Cargo"
+table(grep("^cargo",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+```
+```{r}
+table(grep("^de",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+length(grep("^de",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))
+```
+```{r}
+nyc1.clean5$VEHICLE.TYPE.CODE.2[c(grep("^de",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))]="Delivery Vehicle"
+table(grep("^de",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+```
+```{r}
+table(grep("^dump",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+length(grep("^dump",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))
+```
+
+```{r}
+nyc1.clean5$VEHICLE.TYPE.CODE.2[c(grep("^dump",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))]="Dump Truck"
+table(grep("^dump",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+```
+```{r}
+table(grep("^E[- ]*bi",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+length(grep("^E[- ]*bi",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))
+```
+```{r}
+nyc1.clean5$VEHICLE.TYPE.CODE.2[c(grep("^E[- ]*bi",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))]="E-Bike"
+table(grep("^E[- ]*bi",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+```
+```{r}
+table(grep("^E[- ]*sco",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+length(grep("^E[- ]*sco",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))
+```
+
+
+```{r}
+nyc1.clean5$VEHICLE.TYPE.CODE.2[c(grep("^E[- ]*sco",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))]="E-Scooter"
+table(grep("^E[- ]*sco",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+```
+```{r}
+table(grep("^fd|fir",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+length(grep("^fd|fir",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))
+```
+```{r}
+nyc1.clean5$VEHICLE.TYPE.CODE.2[c(grep("^fd|fir",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))]="FDNY Vehicles (Fire Engines/Trucks)"
+table(grep("^fd|fir",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+```
+
+```{r}
+table(grep("^foo",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+length(grep("^foo",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))
+```
+
+```{r}
+nyc1.clean5$VEHICLE.TYPE.CODE.2[c(grep("^foo",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))]="Food Truck"
+table(grep("^foo",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+```
+```{r}
+table(grep("ford",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+length(grep("ford",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))
+```
+
+```{r}
+nyc1.clean5$VEHICLE.TYPE.CODE.2[c(grep("ford",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))]="Ford"
+table(grep("ford",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+```
+```{r}
+table(grep("^fr[ei]*[g|h]+",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+length(grep("^fr[ei]*[g|h]+",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))
+```
+```{r}
+nyc1.clean5$VEHICLE.TYPE.CODE.2[c(grep("^fr[ei]*[g|h]+",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))]="Freight"
+table(grep("^fr[ei]*[g|h]+",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+```
+```{r}
+table(grep("^gar",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+length(grep("^gar",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))
+```
+
+```{r}
+nyc1.clean5$VEHICLE.TYPE.CODE.2[c(grep("^gar",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))]="Garbage or Refuse Vehicles"
+table(grep("^gar",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+```
+```{r}
+table(grep("^lim",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+length(grep("^lim",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))
+```
+
+```{r}
+nyc1.clean5$VEHICLE.TYPE.CODE.2[c(grep("^lim",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))]="Limo"
+table(grep("^lim",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+```
+```{r}
+table(grep("^mac",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+length(grep("^mac",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))
+```
+
+```{r}
+nyc1.clean5$VEHICLE.TYPE.CODE.2[c(grep("^mac",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))]="Mack Truck"
+table(grep("^mac",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+```
+```{r}
+table(grep("^mai",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+length(grep("^mai",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))
+```
+
+```{r}
+nyc1.clean5$VEHICLE.TYPE.CODE.2[c(grep("^mai",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))]="Mail Truck"
+table(grep("^mai",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+```
+```{r}
+table(grep("^mo([ped]*.[ped+])",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+length(grep("^mo([ped]*.[ped+])",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))
+```
+
+```{r}
+nyc1.clean5$VEHICLE.TYPE.CODE.2[c(grep("^mo([ped]*.[ped+])",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))]="Moped"
+table(grep("^mo([ped]*.[ped+])",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+```
+```{r}
+table(grep("^motorcycle",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+length(grep("^motorcycle",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))
+```
+
+```{r}
+nyc1.clean5$VEHICLE.TYPE.CODE.2[c(grep("^motorcycle",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))]="Motorcycle"
+table(grep("^motorcycle",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+```
+
+```{r}
+table(grep("^motor$|^motor ",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+length(grep("^motor$|^motor ",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))
+```
+
+```{r}
+d7<-grep("^motor$|^motor ",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE)
+nyc1.clean5<-slice(nyc1.clean5, -c(d7))
+table(grep("^motor$|^motor ",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+```
+
+
+
+```{r}
+table(grep("^pas",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+length(grep("^pas",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))
+```
+
+```{r}
+nyc1.clean5$VEHICLE.TYPE.CODE.2[c(grep("^pas",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))]="Passenger Vehicle"
+table(grep("^pas",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+```
+```{r}
+table(grep("^ped|^pc$",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+length(grep("^ped|^pc$",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))
+```
+
+```{r}
+nyc1.clean5$VEHICLE.TYPE.CODE.2[c(grep("^ped|^pc$",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))]="Pedicab"
+table(grep("^ped|^pc$",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+```
+```{r}
+table(grep("^pick|^pk",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+length(grep("^pick|^pk",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))
+```
+
+```{r}
+nyc1.clean5$VEHICLE.TYPE.CODE.2[c(grep("^pick|^pk",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))]="Pick-Up Truck"
+table(grep("^pick|^pk",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+```
+```{r}
+table(grep("^pos",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+length(grep("^pos",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))
+```
+
+```{r}
+nyc1.clean5$VEHICLE.TYPE.CODE.2[c(grep("^pos",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))]="Postal Service"
+table(grep("^pos",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+```
+```{r}
+table(grep("^ref",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+length(grep("^ref",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))
+```
+
+```{r}
+nyc1.clean5$VEHICLE.TYPE.CODE.2[c(grep("^ref",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))]="Refrigerated Van"
+table(grep("^ref",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+```
+
+<!-- ```{r} -->
+<!-- table(grep("^rv|^r[/*]v",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE)) -->
+<!-- length(grep("^rv|^r[/*]v",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE)) -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- nyc1.clean5$VEHICLE.TYPE.CODE.2[c(grep("^rv|^r[/*]v",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))]="RV" -->
+<!-- table(grep("^rv|^r[/*]v",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE)) -->
+<!-- ``` -->
+
+
+```{r}
+table(grep("^san",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+length(grep("^san",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))
+```
+
+```{r}
+nyc1.clean5$VEHICLE.TYPE.CODE.2[c(grep("^san",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))]="Sanitary Vehicle"
+table(grep("^san",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+```
+```{r}
+table(grep("^sch",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+length(grep("^sch",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))
+```
+
+```{r}
+nyc1.clean5$VEHICLE.TYPE.CODE.2[c(grep("^sch",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))]="School Bus"
+table(grep("^sch",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+```
+```{r}
+table(grep("^scoo",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+length(grep("^scoo",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))
+```
+
+```{r}
+nyc1.clean5$VEHICLE.TYPE.CODE.2[c(grep("^scoo",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))]="Scooter"
+table(grep("^scoo",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+```
+```{r}
+table(grep("^sed",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+length(grep("^sed",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))
+```
+
+```{r}
+nyc1.clean5$VEHICLE.TYPE.CODE.2[c(grep("^sed",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))]="Sedan"
+table(grep("^sed",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+```
+```{r}
+table(grep("^sem",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+length(grep("^sem",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))
+```
+
+```{r}
+nyc1.clean5$VEHICLE.TYPE.CODE.2[c(grep("^sem",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))]="Semi"
+table(grep("^sem",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+```
+
+
+<!-- ```{r} -->
+<!-- table(grep("^stak",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE)) -->
+<!-- length(grep("^stak",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE)) -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- nyc1.clean5$VEHICLE.TYPE.CODE.2[c(grep("^stak",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))]="Stake" -->
+<!-- table(grep("^stak",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE)) -->
+<!-- ``` -->
+
+
+
+
+```{r}
+table(grep("^tank",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+length(grep("^tank",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))
+```
+
+```{r}
+nyc1.clean5$VEHICLE.TYPE.CODE.2[c(grep("^tank",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))]="Tanker"
+table(grep("^tank",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+```
+```{r}
+table(grep("^taxi",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+length(grep("^taxi",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))
+```
+
+```{r}
+nyc1.clean5$VEHICLE.TYPE.CODE.2[c(grep("^taxi",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))]="Taxi"
+table(grep("^taxi",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+```
+```{r}
+table(grep("^tow$|^tow ",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+length(grep("^tow$|^tow ",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))
+```
+
+```{r}
+nyc1.clean5$VEHICLE.TYPE.CODE.2[c(grep("^tow$|^tow ",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))]="Tow-Truck"
+table(grep("^tow$|^tow-",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+```
+```{r}
+table(grep("^trac",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+length(grep("^trac",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))
+```
+
+```{r}
+nyc1.clean5$VEHICLE.TYPE.CODE.2[c(grep("^trac",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))]="Tractor Truck Diesel/Gasoline"
+table(grep("^trac",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+```
+```{r}
+table(grep("^tr[l*]|^trai",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+length(grep("^tr[l*]|^trai",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))
+```
+
+```{r}
+nyc1.clean5$VEHICLE.TYPE.CODE.2[c(grep("^tr[l*]|^trai",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))]="Trailer"
+table(grep("^tr[l*]|^trai",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+```
+```{r}
+table(grep("^tru",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+length(grep("^tru",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))
+```
+
+```{r}
+nyc1.clean5$VEHICLE.TYPE.CODE.2[c(grep("^tru",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))]="Truck"
+table(grep("^tru",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+```
+```{r}
+table(grep("^us",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+length(grep("^us",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))
+```
+
+```{r}
+nyc1.clean5$VEHICLE.TYPE.CODE.2[c(grep("^us",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))]="US Postal Service"
+table(grep("^us",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+```
+```{r}
+table(grep("^ut",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+length(grep("^ut",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))
+```
+
+```{r}
+nyc1.clean5$VEHICLE.TYPE.CODE.2[c(grep("^ut",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))]="Utility Vehicle"
+table(grep("^ut",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+```
+```{r}
+table(grep("^van",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+length(grep("^van",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))
+```
+
+```{r}
+nyc1.clean5$VEHICLE.TYPE.CODE.2[c(grep("^van",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))]="Van"
+table(grep("^van",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+```
+
+```{r}
+table(grep("^wag",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+length(grep("^wag",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))
+```
+
+```{r}
+nyc1.clean5$VEHICLE.TYPE.CODE.2[c(grep("^wag",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))]="Wagon"
+table(grep("^wag",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+```
+```{r}
+table(grep("^un",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+length(grep("^un",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))
+```
+
+```{r}
+nyc1.clean5$VEHICLE.TYPE.CODE.2[c(grep("^un",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))]="Unknown"
+table(grep("^un",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+
+```
+
+```{r}
+table(nyc1.clean5$VEHICLE.TYPE.CODE.2)
+```
+Removing all the inconsistent variables with numeric and alpha  numeric values
+
+```{r}
+table(grep("^[0-9]*$",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+length(grep("^[0-9]*$",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))
+```
+```{r}
+d8<-grep("^[0-9]*$",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE)
+nyc1.clean5<-slice(nyc1.clean5, -c(d8))
+table(grep("^[0-9]*$",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+```
+
+```{r}
+table(grep("^2 dr",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+length(grep("2 dr",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))
+```
+```{r}
+nyc1.clean5$VEHICLE.TYPE.CODE.2[c(grep("^2 dr",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))]="Sedan - 2 Door"
+table(grep("^sedan",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+```
+
+```{r}
+table(grep("^4 dr",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+length(grep("4 dr",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))
+```
+```{r}
+nyc1.clean5$VEHICLE.TYPE.CODE.2[c(grep("^4 dr",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))]="Sedan - 4 Door"
+table(grep("^sedan",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+```
+```{r}
+table(grep("^[0-9]",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+length(grep("^[0-9]",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))
+```
+
+
+```{r}
+d9<-grep("^[0-9]",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE)
+nyc1.clean5<-slice(nyc1.clean5, -c(d9))
+table(grep("^[0-9]",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+```
+
+```{r}
+plyr::count(nyc1.clean5$VEHICLE.TYPE.CODE.2)
+```
+
+```{r}
+table(grep("^armor",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+length(grep("^armor",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))
+```
+
+
+```{r}
+nyc1.clean5$VEHICLE.TYPE.CODE.2[c(grep("^armor",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))]="Armored Truck"
+table(grep("^armor",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+```
+
+```{r}
+table(grep("^carr",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+length(grep("^carr",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))
+```
+
+
+```{r}
+nyc1.clean5$VEHICLE.TYPE.CODE.2[c(grep("^carr",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))]="Carry All"
+table(grep("^carr",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+```
+
+```{r}
+table(grep("^conv",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+length(grep("^conv",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))
+```
+
+
+```{r}
+nyc1.clean5$VEHICLE.TYPE.CODE.2[c(grep("^conv",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))]="Convertible"
+table(grep("^conv",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+```
+
+```{r}
+table(grep("^dirt",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+length(grep("^dirt",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))
+```
+
+
+```{r}
+nyc1.clean5$VEHICLE.TYPE.CODE.2[c(grep("^dirt",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))]="Dirt Bike"
+table(grep("^dirt",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+```
+
+```{r}
+table(grep("^elec",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+length(grep("^elec",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))
+```
+
+
+```{r}
+nyc1.clean5$VEHICLE.TYPE.CODE.2[c(grep("^elec",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))]="E-Scooter"
+nyc1.clean5$VEHICLE.TYPE.CODE.2[c(grep("^E- ",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))]="E-Bike"
+table(grep("^E-",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+```
+
+```{r}
+table(grep("^Flatb|^flat b",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+length(grep("^Flatb|^flat b",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))
+```
+
+
+```{r}
+nyc1.clean5$VEHICLE.TYPE.CODE.2[c(grep("^Flatb|^flat b",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))]="Flat Bed"
+table(grep("^Flatb|^flat b",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+```
+```{r}
+table(grep("^fork",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+length(grep("^fork",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))
+```
+
+
+```{r}
+nyc1.clean5$VEHICLE.TYPE.CODE.2[c(grep("^fork",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))]="Forklifts"
+table(grep("^fork",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+```
+```{r}
+table(grep("^motorbike",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+length(grep("^motorbike",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))
+```
+
+
+```{r}
+nyc1.clean5$VEHICLE.TYPE.CODE.2[c(grep("^motorbike",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))]="Motorbike"
+table(grep("^motorbike",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+```
+```{r}
+table(grep("^str",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+length(grep("^str",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))
+```
+
+```{r}
+d10<-grep("^str",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE)
+nyc1.clean5<-slice(nyc1.clean5, -c(d10))
+table(grep("^str",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+```
+```{r}
+table(grep("^back",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+length(grep("^back",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))
+```
+
+```{r}
+d11<-grep("^back",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE)
+nyc1.clean5<-slice(nyc1.clean5, -c(d11))
+table(grep("^back",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+```
+
+```{r}
+table(grep("^mta",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+length(grep("^mta",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))
+```
+
+```{r}
+d12<-grep("^mta",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE)
+nyc1.clean5<-slice(nyc1.clean5, -c(d12))
+table(grep("^mta",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+```
+```{r}
+table(grep("^n",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+length(grep("^n",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))
+```
+
+```{r}
+d13<-grep("^n",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE)
+nyc1.clean5<-slice(nyc1.clean5, -c(d13))
+table(grep("^n",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+```
+```{r}
+table(grep("^trk",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+length(grep("^trk",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))
+```
+
+```{r}
+d14<-grep("^trk",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE)
+nyc1.clean5<-slice(nyc1.clean5, -c(d14))
+table(grep("^trk",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+```
+```{r}
+table(grep("^power",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+length(grep("^power",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE))
+```
+
+```{r}
+d15<-grep("^power",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE)
+nyc1.clean5<-slice(nyc1.clean5, -c(d15))
+table(grep("^power",nyc1.clean5$VEHICLE.TYPE.CODE.2, ignore.case = TRUE, value=TRUE))
+```
+```{r}
+one.num2<-as.data.frame(plyr::count(nyc1.clean5$VEHICLE.TYPE.CODE.2))
+one.num2
+one.num3<-one.num2[one.num2$freq<=5,]
+one.num3
+```
+
+
+```{r}
+nyc1.clean5a<-nyc1.clean5[ !nyc1.clean5$VEHICLE.TYPE.CODE.2 %in% one.num3$x,]
+```
+
+
+```{r}
+plyr::count(nyc1.clean5a$VEHICLE.TYPE.CODE.2)
+```
+
+
+```{r}
+table(nyc1.clean5a$VEHICLE.TYPE.CODE.2)
+```
+```{r}
+table(nyc1.clean5a$VEHICLE.TYPE.CODE.1)
+```
+
+```{r}
+dim(nyc1.clean5a)
+```
+```{r}
+nyc1.clean5a$Crash.Year<-str_sub(nyc1.clean5a$CRASH.DATE, start=-4)
+head(nyc1.clean5a)
+table(nyc1.clean5a$Crash.Year)
+```
+
+<!-- ```{r} -->
+<!-- nyc1.6a<-nyc1.clean5a%>% group_by(BOROUGH,Crash.Year) %>% dplyr::sample_n(800) -->
+<!-- nyc1.6a -->
+<!-- ``` -->
+<!-- ```{r} -->
+<!-- table(nyc1.6a$Crash.Year) -->
+<!-- table(nyc1.clean5a$BOROUGH) -->
+<!-- table(nyc1.6a$BOROUGH) -->
+<!-- ``` -->
+
+```{r}
+nyc1.clean5a$Crash.Year<-as.numeric(nyc1.clean5a$Crash.Year)
+```
+
+
+```{r}
+nyc1.clean6<-plyr::ddply(nyc1.clean5a,.(Crash.Year),function(x) x[sample(nrow(x),1000),])
+nyc1.clean6
+table(nyc1.clean6$Crash.Year)
+```
+
+
+
+
+
+
+```{r}
+colnames(nyc1.clean6)
+```
+
+
+
+```{r}
+nyc1.clean6<-subset(nyc1.clean6,select = -c(23))
+colnames(nyc1.clean6)
+```
+
+
+
+
+```{r}
+# nyc1.clean6<-nyc1.clean5a
+nyc1.clean6
+```
+```{r}
+nyc1.clean6<-nyc1.clean6[nyc1.clean6$CONTRIBUTING.FACTOR.VEHICLE.1!="Unspecified",]
+# nyc1.clean6<-nyc1.clean6[nyc1.clean6$CONTRIBUTING.FACTOR.VEHICLE.2!="Unspecified",]
+```
+
+
+---------*********
+3. Checking for Outliers in the Data
+```{r}
+summary(nyc1.clean6)
+```
+
+```{r}
+table(nyc1.clean6$NUMBER.OF.CYCLIST.INJURED!=0)
+table(nyc1.clean6$NUMBER.OF.CYCLIST.KILLED!=0)
+table(nyc1.clean6$NUMBER.OF.PERSONS.INJURED!=0)
+table(nyc1.clean6$NUMBER.OF.PERSONS.KILLED!=0)
+table(nyc1.clean6$NUMBER.OF.PEDESTRIANS.INJURED!=0)
+table(nyc1.clean6$NUMBER.OF.PEDESTRIANS.KILLED!=0)
+table(nyc1.clean6$NUMBER.OF.MOTORIST.INJURED!=0)
+table(nyc1.clean6$NUMBER.OF.MOTORIST.KILLED!=0)
+```
+```{r}
+nrow(nyc1.clean6)
+
+```
+
+```{r}
+str(nyc1.clean6)
+```
+
+
+
+```{r}
+boxplot(nyc1.clean6$NUMBER.OF.PERSONS.INJURED)
+boxplot(nyc1.clean6$NUMBER.OF.PERSONS.KILLED)
+boxplot(nyc1.clean6$NUMBER.OF.PEDESTRIANS.INJURED)
+boxplot(nyc1.clean6$NUMBER.OF.PEDESTRIANS.INJURED)
+boxplot(nyc1.clean6$NUMBER.OF.MOTORIST.INJURED)
+boxplot(nyc1.clean6$NUMBER.OF.MOTORIST.KILLED)
+boxplot(nyc1.clean6$NUMBER.OF.CYCLIST.INJURED)
+boxplot(nyc1.clean6$NUMBER.OF.CYCLIST.KILLED)
+
+```
+
+```{r}
+colnames(nyc1.clean6)
+```
+
+
+
+```{r}
+opar <- par(no.readonly = TRUE)
+par(mfrow = c(2,3))
+hist(nyc1.clean6[, 10], main = names(nyc1.clean6)[10], xlab = names(nyc1.clean6)[10], xlim = c(0,50))
+hist(nyc1.clean6[, 11], main = names(nyc1.clean6)[11], xlab = names(nyc1.clean6)[11], xlim = c(0,50))
+hist(nyc1.clean6[, 12], main = names(nyc1.clean6)[12], xlab = names(nyc1.clean6)[12], xlim = c(0,50))
+hist(nyc1.clean6[, 13], main = names(nyc1.clean6)[13], xlab = names(nyc1.clean6)[13], xlim = c(0,50))
+hist(nyc1.clean6[, 14], main = names(nyc1.clean6)[14], xlab = names(nyc1.clean6)[14], xlim = c(0,50))
+hist(nyc1.clean6[, 15], main = names(nyc1.clean6)[15], xlab = names(nyc1.clean6)[15], xlim = c(0,50))
+hist(nyc1.clean6[, 16], main = names(nyc1.clean6)[16], xlab = names(nyc1.clean6)[16], xlim = c(0,50))
+hist(nyc1.clean6[, 17], main = names(nyc1.clean6)[17], xlab = names(nyc1.clean6)[17], xlim = c(0,50))
+
+par(opar)
+```
+
+
+
+```{r}
+table(nyc1.clean6$BOROUGH)
+
+```
+4. Converting the variables to appropriate data types
+
+
+
+
+
+
+```{r}
+nyc1.clean6$CRASH.DATE<-parse_date_time(nyc1.clean6$CRASH.DATE,'mdy')
+nyc1.clean6$CRASH.DATE<-as.Date(nyc1.clean6$CRASH.DATE,'mdy')
+```
+```{r}
+nyc1.clean6$CRASH.TIME<-hour(as.POSIXct(nyc1.clean6$CRASH.TIME, format = "%H:%M"))
+```
+```{r}
+head(nyc1.clean6)
+```
+
+```{r}
+nyc1.clean6$ZIP.CODE<-as.character(nyc1.clean6$ZIP.CODE)
+```
+
+```{r}
+head(nyc1.clean6)
+```
+
+```{r}
+colnames(nyc1.clean6)
+```
+```{r}
+nyc1.clean6<-subset(nyc1.clean6,select=-c(7,20))
+```
+```{r}
+head(nyc1.clean6)
+```
+
+
+
+
+
+
+
+
+
+
+
+-----Exploratory Data Analysis-----
+
+
+```{r}
+barplot(table(nyc1.clean6$BOROUGH))
+```
+```{r}
+df_borough.inj<-aggregate(nyc1.clean6$NUMBER.OF.PERSONS.INJURED, by=list(BOROUGH=nyc1.clean6$BOROUGH),FUN=sum)
+df_borough.inj
+```
+```{r}
+colnames(df_borough.inj)[2]<-'TOTAL.INJURED'
+```
+```{r}
+head(df_borough.inj)
+```
+
+
+
+
+
+
+```{r}
+ggplot(df_borough.inj, aes(x = BOROUGH, y = TOTAL.INJURED)) +
+  geom_bar(stat="identity", fill="steelblue")+
+  geom_text(aes(label=TOTAL.INJURED), vjust=1.6, color="white", size=3.5)+
+  theme_minimal()
+```
+
+
+
+```{r}
+ggplot(nyc1.clean6, aes(year(CRASH.DATE),NUMBER.OF.PERSONS.INJURED)) +
+  geom_bar(stat = "identity", show.legend = FALSE,fill="maroon") + 
+  ggtitle("No. of People Injured in NYC Collision according to Year")
+```
+
+```{r}
+ggplot(nyc1.clean6, aes(year(CRASH.DATE),NUMBER.OF.PERSONS.INJURED, fill = BOROUGH)) +
+  geom_bar(stat = "identity", show.legend = FALSE) +
+  ggtitle("No. of People Injured in NYC Collision according to Year") +
+  facet_grid(BOROUGH ~ .)
+```
+
+```{r}
+ggplot(nyc1.clean6, aes(CRASH.TIME,NUMBER.OF.PERSONS.INJURED, fill="orange")) +
+  geom_bar(stat = "identity", show.legend = FALSE) +
+  ggtitle("No. of People Injured in NYC Collision according to Hour")
+```
+
+```{r}
+ggplot(nyc1.clean6, aes(CRASH.TIME,NUMBER.OF.PERSONS.INJURED, fill = BOROUGH)) +
+  geom_bar(stat = "identity", show.legend = FALSE) +
+  ggtitle("No. of People Injured in NYC Collision according to Hour") +
+  facet_grid(BOROUGH ~ .)
+```
+
+
+
+```{r}
+df_borough.inj1<-aggregate(nyc1.clean6$NUMBER.OF.CYCLIST.INJURED, by=list(BOROUGH=nyc1.clean6$BOROUGH),FUN=sum)
+df_borough.inj2<-aggregate(nyc1.clean6$NUMBER.OF.PEDESTRIANS.INJURED, by=list(BOROUGH=nyc1.clean6$BOROUGH),FUN=sum)
+df_borough.inj3<-aggregate(nyc1.clean6$NUMBER.OF.MOTORIST.INJURED, by=list(BOROUGH=nyc1.clean6$BOROUGH),FUN=sum)
+```
+
+```{r}
+colnames(df_borough.inj1)[2]<-'CYCLYST.INJURED'
+colnames(df_borough.inj2)[2]<-'PEDESTRIANS.INJURED'
+colnames(df_borough.inj3)[2]<-'MOTORIST.INJURED'
+```
+```{r}
+head(df_borough.inj)
+head(df_borough.inj1)
+head(df_borough.inj2)
+head(df_borough.inj3)
+```
+
+```{r}
+df_borough.inj<-merge(df_borough.inj, df_borough.inj1,by="BOROUGH")
+df_borough.inj<-merge(df_borough.inj, df_borough.inj2,by="BOROUGH")
+df_borough.inj<-merge(df_borough.inj, df_borough.inj3,by="BOROUGH")
+df_borough.inj
+```
+
+```{r}
+require(reshape2)
+df_borough.plt <- melt(df_borough.inj[,c(1,3,4,5)], id="BOROUGH")
+```
+
+
+```{r}
+ggplot(df_borough.plt, aes(x=BOROUGH, y=value, fill=variable)) +
+  geom_bar(stat="identity")
+```
+```{r}
+colnames(nyc1.clean6)
+```
+
+
+
+```{r}
+nyc1.injured<-subset(nyc1.clean6, select=-c(10,12,14,16))
+nyc1.killed<-subset(nyc1.clean6, select=-c(9,11,13,15))
+```
+```{r}
+head(nyc1.killed)
+head(nyc1.injured)
+```
+
+```{r}
+colnames(nyc1.injured)
+```
+
+
+```{r}
+require(plyr)
+require(dplyr)
+nyc1.injured$Month <- month(nyc1.injured$CRASH.DATE)
+injured_month_b1<-nyc1.injured %>%
+  group_by(BOROUGH, Month) %>%
+  dplyr::summarise(NUMBER.OF.PERSONS.INJURED = n()) 
+```
+```{r}
+injured_month_b1
+```
+
+
+
+
+
+```{r}
+ggplot(injured_month_b1, aes(Month, NUMBER.OF.PERSONS.INJURED, fill = BOROUGH, col = BOROUGH)) +
+  geom_violin(alpha = 0.5, show.legend = FALSE) +
+  theme_solarized_2() + ggtitle("Number of Injuries in NYC according to Month from Year 2012 to 2017")+
+  facet_grid(. ~ BOROUGH) + scale_x_discrete(limits = c(4,8,12)) +
+  geom_point(show.legend = FALSE, size = 2.5)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+```{r}
+sum(nyc1.clean6$NUMBER.OF.PERSONS.KILLED)
+```
+```{r}
+df_borough.kil<-aggregate(nyc1.clean6$NUMBER.OF.PERSONS.KILLED, by=list(BOROUGH=nyc1.clean6$BOROUGH),FUN=sum)
+df_borough.kil
+```
+
+```{r}
+colnames(df_borough.kil)[2]<-'TOTAL.KILLED'
+```
+
+```{r}
+ggplot(df_borough.kil, aes(x = BOROUGH, y = TOTAL.KILLED)) +
+  geom_bar(stat="identity", fill="steelblue")+
+  geom_text(aes(label=TOTAL.KILLED), vjust=1.6, color="white", size=3.5)+
+  theme_minimal()
+```
+
+
+
+
+
+```{r}
+ggplot(nyc1.clean6, aes(year(CRASH.DATE),NUMBER.OF.PERSONS.KILLED)) +
+  geom_bar(stat = "identity", show.legend = FALSE,fill="maroon") +
+  ggtitle("No. of People Killed in NYC Collision according to Year")
+```
+
+
+
+
+```{r}
+ggplot(nyc1.clean6, aes(year(CRASH.DATE),NUMBER.OF.PERSONS.KILLED, fill = BOROUGH)) +
+  geom_bar(stat = "identity", show.legend = FALSE) +
+  ggtitle("No. of People Killed in NYC Collision according to Year") +
+  facet_grid(BOROUGH ~ .)
+```
+
+
+
+```{r}
+ggplot(nyc1.clean6, aes(CRASH.TIME,NUMBER.OF.PERSONS.KILLED, fill="orange")) +
+  geom_bar(stat = "identity", show.legend = FALSE) +
+  ggtitle("No. of People Killed in NYC Collision according to Hour")
+```
+
+
+```{r}
+ggplot(nyc1.clean6, aes(CRASH.TIME,NUMBER.OF.PERSONS.KILLED, fill = BOROUGH)) +
+  geom_bar(stat = "identity", show.legend = FALSE) +
+  ggtitle("No. of People Killed in NYC Collision according to Hour") +
+  facet_grid(BOROUGH ~ .)
+```
+
+
+
+
+
+
+```{r}
+df_borough.kil1<-aggregate(nyc1.clean6$NUMBER.OF.CYCLIST.KILLED, by=list(BOROUGH=nyc1.clean6$BOROUGH),FUN=sum)
+df_borough.kil2<-aggregate(nyc1.clean6$NUMBER.OF.PEDESTRIANS.KILLED, by=list(BOROUGH=nyc1.clean6$BOROUGH),FUN=sum)
+df_borough.kil3<-aggregate(nyc1.clean6$NUMBER.OF.MOTORIST.KILLED, by=list(BOROUGH=nyc1.clean6$BOROUGH),FUN=sum)
+```
+
+```{r}
+colnames(df_borough.kil1)[2]<-'CYCLYST.KILLED'
+colnames(df_borough.kil2)[2]<-'PEDESTRIANS.KILLED'
+colnames(df_borough.kil3)[2]<-'MOTORIST.KILLED'
+```
+```{r}
+head(df_borough.kil)
+head(df_borough.kil1)
+head(df_borough.kil2)
+head(df_borough.kil3)
+```
+
+```{r}
+df_borough.kil<-merge(df_borough.kil, df_borough.kil1,by="BOROUGH")
+df_borough.kil<-merge(df_borough.kil, df_borough.kil2,by="BOROUGH")
+df_borough.kil<-merge(df_borough.kil, df_borough.kil3,by="BOROUGH")
+df_borough.kil
+```
+
+```{r}
+require(reshape2)
+df_borough.plt1 <- melt(df_borough.kil[,c(1,3,4,5)], id="BOROUGH")
+```
+
+
+```{r}
+ggplot(df_borough.plt1, aes(x=BOROUGH, y=value, fill=variable)) +
+  geom_bar(stat="identity")
+```
+```{r}
+colnames(nyc1.killed)
+```
+
+
+```{r}
+require(plyr)
+require(dplyr)
+nyc1.killed$Month <- month(nyc1.killed$CRASH.DATE)
+killed_month_b1<-nyc1.injured %>%
+  group_by(BOROUGH, Month) %>%
+  dplyr::summarise(NUMBER.OF.PERSONS.KILLED = n()) 
+```
+```{r}
+killed_month_b1
+```
+
+
+
+
+
+```{r}
+ggplot(killed_month_b1, aes(Month, NUMBER.OF.PERSONS.KILLED, fill = BOROUGH, col = BOROUGH)) +
+  geom_violin(alpha = 0.5, show.legend = FALSE) +
+  theme_solarized_2() + ggtitle("Number of Deaths in NYC according to Month from Year 2012 to 2017")+
+  facet_grid(. ~ BOROUGH) + scale_x_discrete(limits = c(4,8,12)) +
+  geom_point(show.legend = FALSE, size = 2.5)
+```
+
+```{r}
+colnames(nyc1.clean6)
+```
+
+
+```{r}
+nyc.location<-subset(nyc1.clean6, select = c(3,5,6))
+```
+```{r}
+nyc.location<-nyc.location[order(nyc.location$BOROUGH),]
+```
+```{r}
+nyc.loc_avg<-nyc.location %>%
+  group_by(BOROUGH) %>%
+  dplyr::summarize(across(.fns = mean))
+```
+```{r}
+nyc.loc_avg
+```
+
+```{r}
+nyc.location1<-subset(nyc1.clean6, select = c(3,4,5,6,9,10))
+nyc.location1
+```
+
+
+```{r}
+
+try_accidents <- nyc.location1 %>% group_by(ZIP.CODE) %>% dplyr::summarise(LAT = mean(LATITUDE),
+                                                                       LNG = mean(LONGITUDE),
+                                                                       Crash = n(),
+                                                                       Injured = sum(NUMBER.OF.PERSONS.INJURED),
+                                                                       Killed = sum(NUMBER.OF.PERSONS.KILLED))
+library(leaflet)
+lati <- try_accidents$LAT
+longi <- try_accidents$LNG
+map2 <- try_accidents %>% leaflet() %>% addTiles() %>%
+  addCircles(weight = 4, radius = try_accidents$Injured * 0.5) %>%
+  addMarkers(lat = lati, lng = longi, popup = toupper(paste(as.character(try_accidents$ZIP.CODE),
+                                                      paste("No. of Person Injured: ",
+                                                            as.character(try_accidents$Injured)),
+                                                      paste("No. of Person Killed: ",
+                                                            as.character(try_accidents$Killed)),
+                                                      sep = "<br/>")),
+             clusterOptions = markerClusterOptions())
+map2
+```
+
+
+```{r}
+colnames(nyc1.clean6)
+```
+```{r}
+nyc.numericals<-subset(nyc1.clean6,select=c(2,5,6,9:16))
+```
+
+Checking for correlation between the variables
+
+
+```{r}
+cor_new<-cor(nyc.numericals)
+corrplot(cor_new, diag=F,type="upper",insig = "p-value",number.digits = 1,addCoef.col = 'black',tl.cex=0.6, number.cex=1)
+
+```
+
+High correlation does not seem to exist between the variables
+
+
+```{r}
+ggplot(nyc1.clean6, aes(x=NUMBER.OF.PERSONS.INJURED,y=CRASH.TIME))+geom_point()+theme_classic()
+ggplot(nyc1.clean6, aes(x=NUMBER.OF.PERSONS.KILLED,y=CRASH.TIME))+geom_point()+theme_classic()
+ggplot(nyc1.injured, aes(x=NUMBER.OF.PERSONS.INJURED,y=Month))+geom_point()+theme_classic()
+ggplot(nyc1.killed, aes(x=NUMBER.OF.PERSONS.KILLED,y=Month))+geom_point()+theme_classic()
+```
+
+
+
+```{r}
+Reason1<-nyc1.clean6 %>% group_by(CONTRIBUTING.FACTOR.VEHICLE.1) %>% summarise(Total_accidents = n()) %>% top_n(20, Total_accidents)
+Reason2<-nyc1.clean6 %>% group_by(CONTRIBUTING.FACTOR.VEHICLE.2) %>% summarise(Total_accidents = n()) %>% top_n(20, Total_accidents)
+```
+
+```{r}
+Reason1<-Reason1[order(Reason1$Total_accidents, decreasing = TRUE),]
+Reason2<-Reason2[order(Reason2$Total_accidents, decreasing = TRUE),]
+```
+```{r}
+Reason1
+Reason2
+```
+
+```{r}
+Veh_Typ1<-nyc1.clean6 %>% group_by(VEHICLE.TYPE.CODE.1) %>% summarise(Injured = sum(NUMBER.OF.PERSONS.INJURED),Killed=sum(NUMBER.OF.PERSONS.KILLED)) %>% top_n(20, Injured)
+Veh_Typ2<-nyc1.clean6 %>% group_by(VEHICLE.TYPE.CODE.2) %>% summarise(Injured = sum(NUMBER.OF.PERSONS.INJURED),Killed=sum(NUMBER.OF.PERSONS.KILLED)) %>% top_n(20, Injured)
+```
+
+```{r}
+Veh_Typ1<-Veh_Typ1[order(Veh_Typ1$Injured, decreasing = TRUE),]
+Veh_Typ2<-Veh_Typ2[order(Veh_Typ2$Injured, decreasing = TRUE),]
+```
+```{r}
+Veh_Typ1
+Veh_Typ2
+```
+
+```{r}
+Veh_Typ1a<-Veh_Typ1[order(Veh_Typ1$Killed, decreasing = TRUE),]
+Veh_Typ2b<-Veh_Typ2[order(Veh_Typ2$Killed, decreasing = TRUE),]
+```
+```{r}
+Veh_Typ1a
+Veh_Typ2b
+```
+```{r}
+plot(nyc1.clean6$NUMBER.OF.PERSONS.KILLED~nyc1.clean6$NUMBER.OF.PERSONS.INJURED)
+```
+
+```{r}
+str(nyc1.clean6)
+```
+
+
+```{r}
+skim(nyc1.clean6)
+```
+Converting all the character varibles in Factors
+```{r}
+colnames(nyc1.clean6)
+```
+
+```{r}
+nyc1.clean6[sapply(nyc1.clean6, is.character)] <- lapply(nyc1.clean6[sapply(nyc1.clean6, is.character)], 
+                                       as.factor)
+```
+
+
+```{r}
+nyc1.clean6
+```
+
+
+
+
+
+
+Unsupervised Learning : PCA with one hot encoding
+
+
+
+
+```{r}
+newdata <- one_hot(as.data.table(nyc1.clean6[ ,c(3,4,7,8,17:20)]))
+newdata1<-newdata
+newdata1$NUMBER.OF.PERSONS.INJURED<-nyc1.clean6$NUMBER.OF.PERSONS.INJURED
+newdata1$NUMBER.OF.PERSONS.KILLED<-nyc1.clean6$NUMBER.OF.PERSONS.KILLED
+```
+```{r}
+nyc.pca<-prcomp(newdata1, center = T, scale. = T)
+```
+
+```{r}
+attributes(nyc.pca)
+```
+ calculate the proportion of exaplained variance (PEV) from the std values
+```{r}
+nyc.pca_var <- nyc.pca$sdev^2
+# nyc.pca_var
+nyc.pca_PEV <- nyc.pca_var / sum(nyc.pca_var)
+# nyc.pca_PEV
+```
+```{r}
+plot(nyc.pca)
+```
+
+```{r}
+opar <- par(no.readonly = TRUE)
+plot(
+  cumsum(nyc.pca_PEV),
+  ylim = c(0,1),
+  xlab = 'PC',
+  ylab = 'cumulative PEV',
+  pch = 20,
+  col = 'orange'
+)
+abline(h = 0.9, col = 'red', lty = 'dashed')
+par(opar)
+```
+
+
+
+
+```{r}
+nyc.pca_loadings <- nyc.pca$rotation
+
+```
+
+```{r}
+get_pca(nyc.pca, element = c("var", "ind"))
+```
+```{r}
+var<-get_pca_var(nyc.pca)
+
+```
+```{r}
+fviz_contrib(nyc.pca, choice = "var", axes = 1, top = 10)
+fviz_contrib(nyc.pca, choice = "var", axes = 2, top = 10)
+```
+
+
+```{r}
+head(var$coord[1:10,1:10])
+```
+
+```{r}
+head(var$cor[1:10,1:10])
+```
+
+```{r}
+eig.val <- get_eigenvalue(nyc.pca)
+eig.val
+```
+```{r}
+fviz_pca_var(nyc.pca, col.var = "black")
+```
+
+
+```{r}
+cumsum(nyc.pca_PEV)[2500]
+cumsum(nyc.pca_PEV)[3000]
+```
+
+We either consider the PCs that explains 80% or 90% of explained variance.
+Which is 2500 or 3000PCs Respectively
+
+```{r}
+opar <- par(no.readonly = TRUE)
+colvector = c('red', 'orange', 'yellow', 'green', 'cyan', 'blue')
+labvector = c('PC1', 'PC2', 'PC3')
+barplot(
+  nyc.pca_loadings[,c(1:3)],
+  beside = T,
+  yaxt = 'n',
+  names.arg = labvector,
+  col = colvector,
+  ylim = c(-1,1),
+  border = 'white',
+  ylab = 'loadings'
+)
+axis(2, seq(-1,1,0.1))
+legend(
+  'bottomright',
+  bty = 'n',
+  col = colvector,
+  pch = 15,
+  row.names(nyc.pca_loadings)
+)
+par(opar)
+```
+
+```{r}
+opar <- par(no.readonly = TRUE)
+par(mfrow = c(2,2))
+biplot(
+  nyc.pca,
+  scale = 0,
+  col = c('grey40','orange')
+)
+biplot(
+  nyc.pca,
+  choices = c(1,3),
+  scale = 0,
+  col = c('grey40','orange')
+)
+biplot(
+  nyc.pca,
+  choices = c(2,3),
+  scale = 0,
+  col = c('grey40','orange')
+)
+par(opar)
+```
+
+
+
+PCA is creating a complex matrix with the current data set, alternative approach would be useful. Although it is suggesting to disregard, CONTRIBUTING VEHICAL FACTOR and VEHICAL TYPE CODE Columns, which could be important to the dataset based on the EDA Performed.
+
+
+
+
+***
+Unsupervised Learning : Hierarchical Clustering
+
+
+```{r}
+colnames(nyc1.clean6)
+```
+
+
+```{r}
+gower.dist<-daisy(nyc1.clean6[ ,c(2:4,9,10,17:20)], metric = c("gower"))
+```
+
+
+
+
+```{r}
+nyc.clust<-hclust(gower.dist, method = 'complete')
+nyc.clust
+```
+```{r}
+plot(nyc.clust, main = "Agglomerative, complete linkages")
+hc_nyc <- cutree(nyc.clust, k = 5)
+```
+
+
+```{r}
+library("fpc")
+cstats.table <- function(dist, tree, k) {
+clust.assess <- c("cluster.number","n","within.cluster.ss","average.within","average.between",
+                  "wb.ratio","dunn2","avg.silwidth")
+clust.size <- c("cluster.size")
+stats.names <- c()
+row.clust <- c()
+output.stats <- matrix(ncol = k, nrow = length(clust.assess))
+cluster.sizes <- matrix(ncol = k, nrow = k)
+for(i in c(1:k)){
+  row.clust[i] <- paste("Cluster-", i, " size")
+}
+for(i in c(2:k)){
+  stats.names[i] <- paste("Test", i-1)
+  
+  for(j in seq_along(clust.assess)){
+    output.stats[j, i] <- unlist(cluster.stats(d = dist, clustering = cutree(tree, k = i))[clust.assess])[j]
+    
+  }
+  
+  for(d in 1:k) {
+    cluster.sizes[d, i] <- unlist(cluster.stats(d = dist, clustering = cutree(tree, k = i))[clust.size])[d]
+    dim(cluster.sizes[d, i]) <- c(length(cluster.sizes[i]), 1)
+    cluster.sizes[d, i]
+    
+  }
+}
+output.stats.df <- data.frame(output.stats)
+cluster.sizes <- data.frame(cluster.sizes)
+cluster.sizes[is.na(cluster.sizes)] <- 0
+rows.all <- c(clust.assess, row.clust)
+# rownames(output.stats.df) <- clust.assess
+output <- rbind(output.stats.df, cluster.sizes)[ ,-1]
+colnames(output) <- stats.names[2:k]
+rownames(output) <- rows.all
+is.num <- sapply(output, is.numeric)
+output[is.num] <- lapply(output[is.num], round, 2)
+output
+}
+```
+
+```{r}
+stats.df.aggl <-cstats.table(gower.dist,nyc.clust, 7)
+stats.df.aggl
+```
+
+
+
+```{r}
+if(require(cluster) == FALSE){
+    install.packages('cluster')
+}
+
+sil_hc_nyc <- cluster::silhouette(hc_nyc, gower.dist)
+
+# plot the results of the silhoutte analysis for the two cluster solutions
+
+plot(sil_hc_nyc)
+```
+
+
+
+Supervised Learning - Machine Learning approach
+
+
+
+```{r}
+if(require(tree) == FALSE){
+  install.packages('tree')
+  library(tree)
+}
+if(require(randomForest) == FALSE){
+  install.packages('randomForest')
+  library(randomForest)
+}
+```
+
+
+```{r}
+set.seed(1999)
+n_rows <- nrow(nyc1.clean6)
+training_idx <- sample(n_rows, n_rows * 0.7)
+nyc.train <- nyc1.clean6[training_idx,]
+nyc.test <- nyc1.clean6[-training_idx,]
+```
+
+
+
+
+```{r}
+nyc1.accident<-nyc1.clean6
+nyc1.accident$CRASH.MONTH<-month(nyc1.accident$CRASH.DATE)
+nyc1.accident$CRASH.YEAR<-year(nyc1.accident$CRASH.DATE)
+nyc1.accident$CRASH.DAY<-day(nyc1.accident$CRASH.DATE)
+nyc1.accident$Wday<-wday(nyc1.accident$CRASH.DATE)
+accidents_date <- nyc1.accident %>% group_by(CRASH.DATE) %>% summarise(Crash = n())
+accidents_date <- as.data.frame(accidents_date)
+Crashes <- data.frame(Crash = accidents_date$Crash)
+```
+```{r}
+nyc1.accident$Casualties<-nyc1.accident$NUMBER.OF.PERSONS.INJURED+nyc1.accident$NUMBER.OF.PERSONS.KILLED
+```
+
+
+```{r}
+sumed_accidents2 <- nyc1.accident %>% group_by(CRASH.MONTH,CRASH.YEAR, CRASH.DAY, Wday,BOROUGH,CRASH.TIME) %>% summarise(Crashes = n())
+sumed_accidents2$CRASH.DAY <- as.factor(sumed_accidents2$CRASH.DAY)
+sumed_accidents2$CRASH.MONTH <- as.factor(sumed_accidents2$CRASH.MONTH)
+sumed_accidents2$CRASH.YEAR <- as.factor(sumed_accidents2$CRASH.YEAR)
+sumed_accidents2$Wday <- as.factor(sumed_accidents2$Wday)
+# sumed_accidents2$Casualties <- as.factor(sumed_accidents2$Casualties)
+sumed_accidents2$Wday <- as.factor(sumed_accidents2$Wday)
+sumed_accidents2$CRASH.TIME <- as.factor(sumed_accidents2$CRASH.TIME)
+intrain <- createDataPartition(y = sumed_accidents2$Crashes, list = FALSE, p = 0.7)
+training <- sumed_accidents2[intrain, ]
+testing <- sumed_accidents2[-intrain, ]
+```
+
+
+```{r}
+nyc.model<-randomForest(Crashes~., ntree = 100, importance = T, data = training)
+plot(nyc.model)
+varImpPlot(nyc.model, type = 1)
+```
+```{r}
+nyc_pred<-predict(nyc.model, testing, type= "class")
+rf_results_table <- table(rf = nyc_pred,  actual = testing$Crashes)
+
+```
+```{r}
+acc_rf <- sum(diag(rf_results_table)) / sum(rf_results_table)
+acc_rf
+```
+
+
+```{r}
+final_model <- train(Crashes ~ ., data = training, method = "rf", 
+                     trControl = trainControl(method = "repeatedcv", repeats = 2,
+                     number = 2, search = "random"), preProcess = c("center", "scale"))
+p <- data.frame(predicted = predict(final_model, testing))
+p
+```
+`
+
+
+```{r}
+p$Actual <- testing$Crashes
+p$resid <- (p$predicted - p$Actual)
+pp <- filter(p , p$resid >= -250)
+pp
+```
+
+
+```{r}
+ggplot(pp, aes(resid)) + geom_histogram(aes(y = ..density..),fill = "white", col = "black") +
+  geom_density(fill = "darkorange", alpha = 0.5) + ggtitle("Plot for Residuals vs Fitted values") +
+  xlab("Residuals") + ylab("Density for Fitted Values") + theme_minimal()
+```
+
+
+
+Decision Tree
+
+
+```{r}
+sumed_accidents3 <- nyc1.accident %>% group_by(CRASH.MONTH,CRASH.YEAR, CRASH.DAY,Wday,BOROUGH) %>% summarise(Crashes=n(),Casualties=sum(Casualties))
+sumed_accidents3$CRASH.DAY <- as.factor(sumed_accidents3$CRASH.DAY)
+sumed_accidents3$CRASH.MONTH <- as.factor(sumed_accidents3$CRASH.MONTH)
+sumed_accidents3$CRASH.YEAR <- as.factor(sumed_accidents3$CRASH.YEAR)
+sumed_accidents3$Wday <- as.factor(sumed_accidents3$Wday)
+sumed_accidents3$Casualties <- as.factor(sumed_accidents3$Casualties)
+sumed_accidents3$Wday <- as.factor(sumed_accidents3$Wday)
+# sumed_accidents3$CRASH.TIME <- as.factor(sumed_accidents3$CRASH.TIME)
+intrain.dec <- createDataPartition(y = sumed_accidents3$Crashes, list = FALSE, p = 0.7)
+training.dec <- sumed_accidents3[intrain, ]
+testing.dec <- sumed_accidents3[-intrain, ]
+```
+```{r}
+sumed_accidents4 <- nyc1.accident %>% group_by(CRASH.MONTH,CRASH.YEAR, CRASH.DAY,Wday,BOROUGH) %>% summarise(Crashes=n(),Casualties=sum(Casualties))
+```
+```{r}
+sumed_accidents4$Casualties<-as.factor(sumed_accidents4$Casualties)
+```
+
+```{r}
+sumed_accidents4$Casualties<-ifelse(accident1$Casualties==0,"No","Yes")
+```
+
+```{r}
+# nyc_acc_formula1<-Casualties~CRASH.TIME+CRASH.YEAR+CRASH.MONTH+CRASH.DAY+Wday+BOROUGH
+```
+```{r}
+# write.csv(sumed_accidents4,"NYC_Accidents.csv",row.names=FALSE)
+```
+
+
+
+```{r}
+# nyc_acc_formula2<-NUMBER.OF.PERSONS.INJURED~CRASH.DAY+CRASH.TIME+CRASH.YEAR+BOROUGH+VEHICLE.TYPE.CODE
+tree_nyc_inj<- tree(Crashes~., data =training.dec)
+summary(tree_nyc_inj)
+```
+
+
+```{r}
+# plot the tree
+plot(tree_nyc_inj)
+text(tree_nyc_inj, pretty = 0)
+
+# prune the tree using cross-validation
+```
+
+
+```{r}
+cv_nyc_inj <- cv.tree(tree_nyc_inj, FUN=prune.tree)
+attributes(cv_nyc_inj)
+# create a table of tree size and classification error
+#   note: the cross-validation object has an attribute dev for the classification error
+#     you can check the attribute names using attributes(cv_carseats_sales)
+cv_nyc_inj_table <- data.frame(
+  size = cv_nyc_inj$size,
+  error = cv_nyc_inj$dev
+)
+```
+
+```{r}
+# plot the cv_carseats_sales_table
+plot(
+  cv_nyc_inj_table,
+  xaxt = 'n',
+  yaxt = 'n'
+)
+axis(1, seq(1,max(cv_nyc_inj_table$size)))
+axis(2, seq(50,150,5))
+```
+
+
+```{r}
+# select the tree size with the minimum error
+pruned_tree_size <- cv_nyc_inj_table[which.min(cv_nyc_inj_table$error), 'size']
+
+# prune the tree to the required size
+pruned_tree_nyc_inj <- prune.tree(tree_nyc_inj, best = pruned_tree_size)
+
+# inspect the pruned tree
+summary(pruned_tree_nyc_inj)
+```
+
+
+```{r}
+# plot the tree
+plot(pruned_tree_nyc_inj)
+text(pruned_tree_nyc_inj, pretty = 0)
+```
+
+
+```{r}
+# compare the un/pruned trees
+par(mfrow = c(1,2))
+plot(tree_nyc_inj)
+text(tree_nyc_inj, pretty = 0)
+plot(pruned_tree_nyc_inj)
+text(pruned_tree_nyc_inj, pretty = 0)
+par(mfrow = c(1,1))
+
+```
+
+```{r}
+# compute the prediction for un/pruned trees
+#   note: the Sales attribute (column 1) is excluded from the test data set
+tree_nyc_inj_pred <- predict(tree_nyc_inj, testing.dec)
+pruned_tree_nyc_inj_pred <- predict(pruned_tree_nyc_inj, testing.dec)
+
+# create a table with actual values and the two predictions
+nyc_inj_results <- data.frame(
+  actual = testing.dec$Crashes,
+  unpruned = tree_nyc_inj_pred,
+  pruned = pruned_tree_nyc_inj_pred
+)
+
+# create a contingency table for the actual VS predicted for both predictions
+unpruned_results_table <- table(nyc_inj_results[,c('actual', 'unpruned')])
+unpruned_results_table
+pruned_results_table <- table(nyc_inj_results[,c('actual', 'pruned')])
+pruned_results_table
+
+# calculate accuracy from each contigency table
+#   as sum of diagonal elements over sum of the matrix values
+acc_unpruned <- sum(diag(unpruned_results_table)) / sum(unpruned_results_table)
+acc_unpruned
+acc_pruned <- sum(diag(pruned_results_table)) / sum(pruned_results_table)
+acc_pruned
+```
+
+
+
+
+
